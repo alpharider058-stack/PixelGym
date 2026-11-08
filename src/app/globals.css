@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0d17;
+  --panel: #161a2b;
+  --edge: #2c3350;
+  --gold: #ffe14d;
+  --cyan: #3df2ff;
+  --red: #ff3f6c;
+  --green: #7dff6a;
+  color-scheme: dark;
+}
+
+html, body {
+  background: var(--bg);
+  color: #f2f4ff;
+  overscroll-behavior: none;          /* blocks pull-to-refresh */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;          /* no double-tap zoom */
+  user-select: none;
+  -webkit-user-select: none;
+}
+body {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px = no iOS zoom on focus */
+
+.pixel-title { font-family: var(--font-pixel), monospace; letter-spacing: .02em; line-height: 1.5; }
+.mono { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
+.pixelated, canvas, img, svg { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* Panels: hard pixel borders (stepped corners via box-shadow, 0 blur) */
+.panel {
+  background: var(--panel);
+  box-shadow:
+    0 -4px 0 0 var(--edge), 0 4px 0 0 var(--edge), -4px 0 0 0 var(--edge), 4px 0 0 0 var(--edge),
+    4px 8px 0 0 #000, 8px 4px 0 0 #000;
+  margin: 4px;
+}
+.frame9 {
+  padding: 4px; background: #000;
+  box-shadow: 0 0 0 4px #4a5280, 0 0 0 8px #000, 8px 8px 0 4px #000;
+}
+
+/* Pixel buttons — depth via hard shadow; press via transform only (GPU) */
+.pbtn {
+  font-family: var(--font-pixel), monospace;
+  font-size: 10px;
+  color: #fff;
+  border: 3px solid #000;
+  box-shadow: inset -4px -4px 0 rgba(0,0,0,.35), inset 4px 4px 0 rgba(255,255,255,.18), 4px 4px 0 #000;
+  will-change: transform;
+  touch-action: manipulation;
+}
+.pbtn:disabled { opacity: .45; }
+.pbtn-primary { background: #3b5bdb; }
+.pbtn-ghost { background: #1d2236; color: #cfd5f5; }
+.pbtn-danger { background: #a01c2c; }
+.pbtn-gold { background: #d4a017; color: #120c00; }
+.pbtn-cyan { background: #0e7c8a; }
+
+.step-btn {
+  width: 1.75rem;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1d2236;
+  border: 2px solid #4a5280;
+  color: var(--gold);
+  font-family: var(--font-pixel), monospace;
+  font-size: 13px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+.step-btn:disabled { opacity: .3; }
+
+.pinput {
+  background: #10131f; border: 3px solid #4a5280; padding: .5rem .75rem;
+  font-family: var(--font-pixel), monospace; font-size: 12px; color: #fff; outline: none;
+}
+
+.pbar { position: relative; width: 100%; background: #0a0c14; border: 2px solid #000; box-shadow: 0 0 0 2px #2c3350; overflow: hidden; }
+.pbar-fill {
+  position: absolute; inset: 0; transform-origin: 0 50%; will-change: transform;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.3), inset 0 2px 0 rgba(255,255,255,.35);
+}
+
+.hud, .navbar { background: rgba(11,13,23,.92); }
+.hud { border-bottom: 4px solid #000; box-shadow: 0 4px 0 var(--edge); }
+.navbar { border-top: 4px solid #000; box-shadow: 0 -4px 0 var(--edge); }
+
+/* CRT scanlines (static, composited once) */
+body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 70;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+
+.blink { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { opacity: 0; } }
+
+::-webkit-scrollbar { width: 0; height: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
