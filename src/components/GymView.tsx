@@ -1,7 +1,7 @@
 "use client";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { allRoutines, useGame } from "@/lib/store";
 import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, titleOf } from "@/lib/data";
@@ -387,7 +387,13 @@ function RoutineBuilder({ onClose, initial }: { onClose: () => void; initial?: R
   const save = useGame((s) => s.saveRoutine);
   const [name, setName] = useState(initial?.name || "MI RUTINA");
   const [icon, setIcon] = useState<string>(initial?.icon || "biceps");
+  const [iconCat, setIconCat] = useState<"all" | "muscle" | "equipment" | "attribute">("all");
   const [sel, setSel] = useState<string[]>(initial?.exercises || []);
+
+  const filteredIcons = useMemo(() => {
+    if (iconCat === "all") return PIXEL_ROUTINE_ICONS;
+    return PIXEL_ROUTINE_ICONS.filter((ic) => ic.category === iconCat);
+  }, [iconCat]);
 
   return (
     <Sheet
@@ -395,7 +401,7 @@ function RoutineBuilder({ onClose, initial }: { onClose: () => void; initial?: R
       title={initial ? "EDITAR RUTINA" : "NUEVA RUTINA"}
       footer={
         <PixelButton
-          className="w-full py-3 text-xs"
+          className="w-full py-3.5 text-xs font-bold shadow-[2px_2px_0_#000]"
           variant="gold"
           disabled={!sel.length}
           onClick={() => {
@@ -409,48 +415,94 @@ function RoutineBuilder({ onClose, initial }: { onClose: () => void; initial?: R
             onClose();
           }}
         >
-          GUARDAR RUTINA ({sel.length})
+          GUARDAR RUTINA ({sel.length} EJERCICIOS)
         </PixelButton>
       }
     >
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center border-2 border-[var(--gold)] bg-[#10131f] shadow-[2px_2px_0_#000]">
-            <PixelArtIcon name={icon} size={30} />
+      <div className="space-y-4">
+        {/* Name & Selected Icon Header */}
+        <div className="flex items-center gap-2.5">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={APPLE_SPRING}
+            className="flex h-13 w-13 shrink-0 items-center justify-center border-2 border-[var(--gold)] bg-[#10131f] shadow-[2px_2px_0_#000]"
+          >
+            <PixelArtIcon name={icon} size={32} />
+          </motion.div>
+          <div className="flex-1 min-w-0">
+            <input
+              className="pinput w-full text-sm font-bold uppercase tracking-wide"
+              value={name}
+              maxLength={16}
+              placeholder="NOMBRE DE RUTINA"
+              onChange={(e) => setName(e.target.value.toUpperCase())}
+            />
           </div>
-          <input
-            className="pinput flex-1 w-full"
-            value={name}
-            maxLength={14}
-            placeholder="NOMBRE DE RUTINA"
-            onChange={(e) => setName(e.target.value.toUpperCase())}
-          />
         </div>
 
-        {/* Pixel-Art Icon Picker */}
-        <div>
-          <div className="pixel-title text-[8px] text-[var(--gold)] mb-1.5">
-            ELIGE ICONO PIXEL-ART:
+        {/* Pixel-Art Icon Picker without inner scroll trap */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="pixel-title text-[8px] text-[var(--gold)] font-bold">
+              ELIGE ICONO PIXEL-ART:
+            </span>
+            <span className="mono text-[10px] text-[var(--cyan)] font-bold">
+              {PIXEL_ROUTINE_ICONS.find((x) => x.id === icon)?.label ?? icon.toUpperCase()}
+            </span>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 p-2 border-2 border-[#2c3350] bg-[#10131f] max-h-40 overflow-y-auto">
-            {PIXEL_ROUTINE_ICONS.map((ic) => (
+
+          {/* Category filter pills for rapid mobile selection */}
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none touch-pan-x">
+            {(
+              [
+                { id: "all", label: "TODOS (16)" },
+                { id: "muscle", label: "MÚSCULOS" },
+                { id: "equipment", label: "MATERIAL" },
+                { id: "attribute", label: "ATRIBUTOS" },
+              ] as const
+            ).map((cat) => (
+              <motion.button
+                key={cat.id}
+                type="button"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.94 }}
+                transition={APPLE_TAP}
+                onClick={() => {
+                  setIconCat(cat.id);
+                  sfx.tick();
+                }}
+                className={`pixel-title shrink-0 border-2 px-2.5 py-1.5 text-[7px] transition-colors ${
+                  iconCat === cat.id
+                    ? "border-[var(--gold)] bg-[var(--gold)] text-black font-bold shadow-[1px_1px_0_#000]"
+                    : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+                }`}
+              >
+                {cat.label}
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Smooth, direct grid that flows with the sheet (no inner scroll trap) */}
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 p-2 border-2 border-[#2c3350] bg-[#10131f] shadow-inner">
+            {filteredIcons.map((ic) => (
               <motion.button
                 key={ic.id}
                 type="button"
-                whileHover={{ scale: 1.08 }}
+                whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.9 }}
                 transition={APPLE_TAP}
                 onClick={() => {
                   setIcon(ic.id);
                   sfx.tick();
+                  haptic(4);
                 }}
-                className={`flex flex-col items-center gap-1 p-1.5 border-2 transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1 p-2 min-h-[50px] border-2 transition-colors ${
                   icon === ic.id
                     ? "border-[var(--gold)] bg-[#2a2410] shadow-[2px_2px_0_#000]"
                     : "border-[#2c3350] bg-[#141826] active:border-[#4a5280]"
                 }`}
               >
-                <PixelArtIcon name={ic.id} size={22} />
+                <PixelArtIcon name={ic.id} size={24} />
                 <span className="pixel-title text-[6px] text-[#cbd5e1] truncate max-w-full">
                   {ic.label}
                 </span>
@@ -459,7 +511,15 @@ function RoutineBuilder({ onClose, initial }: { onClose: () => void; initial?: R
           </div>
         </div>
 
-        <ExerciseList selected={sel} onPick={(id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id])} />
+        {/* Exercise Selection List */}
+        <div className="pt-1">
+          <ExerciseList
+            selected={sel}
+            onPick={(id) =>
+              setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+            }
+          />
+        </div>
       </div>
     </Sheet>
   );
@@ -472,84 +532,151 @@ function ExerciseList({ selected = [], onPick }: { selected?: string[]; onPick: 
   const [sub, setSub] = useState<string>("TODOS");
   const [q, setQ] = useState("");
   const nq = norm(q.trim());
-  const list = EXERCISES.filter((e) => (sub === "TODOS" || (e.sub ?? MUSCLE_LABEL[e.muscle]) === sub) && (!nq || norm(e.name).includes(nq)));
+  const list = EXERCISES.filter(
+    (e) =>
+      (sub === "TODOS" || (e.sub ?? MUSCLE_LABEL[e.muscle]) === sub) &&
+      (!nq || norm(e.name).includes(nq))
+  );
+
   return (
-    <div className="space-y-2">
-      <input className="pinput w-full" placeholder={`BUSCAR (${EXERCISES.length})...`} value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="flex gap-1 overflow-x-auto pb-1">
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between">
+        <span className="pixel-title text-[8px] text-[var(--gold)] font-bold">
+          EJERCICIOS ({selected.length} SELECCIONADOS):
+        </span>
+        <span className="mono text-[10px] text-[#8b93b8]">
+          {list.length} disponibles
+        </span>
+      </div>
+
+      <input
+        className="pinput w-full text-xs"
+        placeholder={`🔍 BUSCAR EJERCICIO (${EXERCISES.length})...`}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+
+      {/* Horizontal Muscle Group Filter Tabs */}
+      <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none touch-pan-x">
         {["TODOS", ...SUBS].map((s) => (
           <motion.button
             key={s}
-            whileHover={{ scale: 1.05 }}
+            type="button"
+            whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.92 }}
             transition={APPLE_TAP}
-            onClick={() => { setSub(s); sfx.tick(); }}
-            className={`pixel-title shrink-0 border-2 px-2 py-2 text-[7px] transition-colors ${sub === s ? "border-[var(--gold)] bg-[var(--gold)] text-black" : "border-[#2c3350] text-[#8b93b8]"}`}
+            onClick={() => {
+              setSub(s);
+              sfx.tick();
+            }}
+            className={`pixel-title shrink-0 border-2 px-2.5 py-1.5 text-[7px] transition-colors ${
+              sub === s
+                ? "border-[var(--gold)] bg-[var(--gold)] text-black font-bold shadow-[1px_1px_0_#000]"
+                : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+            }`}
           >
             {s.toUpperCase()}
           </motion.button>
         ))}
       </div>
-      <div className="mono text-xs text-[#8b93b8]">{list.length} ejercicios</div>
-      {list.map((e) => {
-        const on = selected.includes(e.id);
-        return (
-          <motion.button
-            key={e.id}
-            whileHover={{ scale: 1.01, x: 2 }}
-            whileTap={{ scale: 0.96 }}
-            transition={APPLE_TAP}
-            onClick={() => { sfx.tick(); haptic(5); onPick(e.id); }}
-            style={{ contentVisibility: "auto", containIntrinsicSize: "auto 44px" }}
-            className={`flex w-full items-center justify-between gap-2 border-2 px-3 py-2 text-left transition-colors ${on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#141826]"}`}
-          >
-            <span className="mono text-base leading-tight">{e.name}</span>
-            <span className="pixel-title shrink-0 text-[7px] opacity-70">{(e.sub ?? MUSCLE_LABEL[e.muscle]).toUpperCase()}{on ? " ✓" : ""}</span>
-          </motion.button>
-        );
-      })}
+
+      {/* Exercise list items with touch-friendly min-h-[48px] */}
+      <div className="space-y-1.5">
+        {list.map((e) => {
+          const on = selected.includes(e.id);
+          return (
+            <motion.button
+              key={e.id}
+              type="button"
+              whileHover={{ scale: 1.01, x: 2 }}
+              whileTap={{ scale: 0.96 }}
+              transition={APPLE_TAP}
+              onClick={() => {
+                sfx.tick();
+                haptic(5);
+                onPick(e.id);
+              }}
+              className={`flex w-full min-h-[48px] items-center justify-between gap-2 border-2 px-3 py-2 text-left transition-colors ${
+                on
+                  ? "border-[var(--gold)] bg-[#2a2410] shadow-[2px_2px_0_#000]"
+                  : "border-[#2c3350] bg-[#141826] active:border-[#4a5280]"
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="mono text-sm leading-tight text-white font-medium">
+                  {e.name}
+                </div>
+                <div className="pixel-title text-[7px] text-[#8b93b8] mt-0.5">
+                  {(e.sub ?? MUSCLE_LABEL[e.muscle]).toUpperCase()}
+                </div>
+              </div>
+              <span
+                className={`pixel-title shrink-0 px-2 py-1 text-[7.5px] font-bold border ${
+                  on
+                    ? "border-[var(--gold)] bg-[var(--gold)] text-black shadow-[1px_1px_0_#000]"
+                    : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+                }`}
+              >
+                {on ? "✓ AÑADIDO" : "＋ AÑADIR"}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export function Sheet({ children, onClose, title, footer }: { children: React.ReactNode; onClose: () => void; title: string; footer?: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+  const dragControls = useDragControls();
+
   useEffect(() => {
     setMounted(true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden"; // lock background scroll
     return () => { document.body.style.overflow = prev; };
   }, []);
+
   if (!mounted) return null;
   // Portal to <body>: escapes transformed ancestors (tab transition / shell shake) so `fixed` is viewport-relative
   return createPortal(
     <motion.div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/80 backdrop-blur-[2px]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        className="panel flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden shadow-2xl touch-pan-y"
+        className="panel flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden shadow-2xl"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={SPRING}
         drag="y"
+        dragControls={dragControls}
+        dragListener={false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0.05, bottom: 0.6 }}
         onDragEnd={(_, info) => {
-          if (info.offset.y > 100 || info.velocity.y > 500) {
+          if (info.offset.y > 100 || info.velocity.y > 400) {
             onClose();
             sfx.whoosh();
           }
         }}
       >
-        <div className="shrink-0 px-4 pt-2.5 pb-2 border-b-2 border-[#2c3350] bg-[#121626]">
-          <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-[#4a5280]" />
+        {/* Grab bar header - only this area handles pull-down dismissal */}
+        <div
+          className="shrink-0 px-4 pt-3 pb-2.5 border-b-2 border-[#2c3350] bg-[#121626] cursor-grab active:cursor-grabbing touch-none select-none"
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest("button")) return;
+            dragControls.start(e);
+          }}
+        >
+          <div className="mx-auto mb-2 h-1.5 w-14 rounded-full bg-[#4a5280] active:bg-[var(--gold)] transition-colors" />
           <div className="flex items-center justify-between">
-            <h3 className="pixel-title text-xs text-[var(--gold)]">{title}</h3>
+            <h3 className="pixel-title text-xs text-[var(--gold)] font-bold">{title}</h3>
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.85 }}
@@ -562,7 +689,11 @@ export function Sheet({ children, onClose, title, footer }: { children: React.Re
             </motion.button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">{children}</div>
+
+        {/* Scrollable body: free vertical scrolling without accidental dismissal */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 touch-pan-y [-webkit-overflow-scrolling:touch]">
+          {children}
+        </div>
         {footer && (
           <div className="shrink-0 border-t-4 border-black bg-[#10131f] px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3">
             {footer}

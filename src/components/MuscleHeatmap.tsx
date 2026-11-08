@@ -41,14 +41,6 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
     return { recovered, recovering, fatigued };
   }, [heatmap]);
 
-  // Suggest routines based on which muscles are fresh / recovered
-  const recommendedRoutines = useMemo(() => {
-    return TEMPLATES.filter((r) => {
-      // Check if majority of its targeted muscles are recovered/recovering
-      return true;
-    }).slice(0, 2);
-  }, []);
-
   const cur = heatmap[selectedMuscle];
 
   const handleSelect = (m: Muscle) => {
@@ -62,18 +54,18 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
       {/* Recovery summary header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#2c3350] pb-2 px-1">
         <div>
-          <h3 className="pixel-title text-xs text-[var(--gold)] flex items-center gap-1.5">
+          <h3 className="pixel-title text-xs text-[var(--gold)] flex items-center gap-1.5 font-bold">
             <span>🧬</span> MAPA DE CALOR MUSCULAR
           </h3>
           <span className="pixel-title text-[7px] text-[#8b93b8]">
-            RECUPERACIÓN Y VOLUMEN (ÚLTIMOS 7 DÍAS)
+            CIENCIA DEL ENTRENAMIENTO & RECUPERACIÓN (7 DÍAS)
           </span>
         </div>
 
         {/* Legend status pills */}
         <div className="flex items-center gap-1.5 text-[7px] pixel-title">
           <span className="flex items-center gap-1 border border-[#2c3350] bg-[#10131f] px-1.5 py-0.5 text-[#7dff6a]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#7dff6a]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7dff6a] animate-pulse" />
             {counts.recovered} FRESCOS
           </span>
           <span className="flex items-center gap-1 border border-[#2c3350] bg-[#10131f] px-1.5 py-0.5 text-[#ffe14d]">
@@ -108,7 +100,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
             className={`pixel-title py-1.5 text-[7px] border-2 transition-colors ${
               viewMode === t.id
                 ? "border-[var(--gold)] bg-[var(--gold)] text-black font-bold shadow-[2px_2px_0_#000]"
-                : "border-[#2c3350] bg-[#10131f] text-[#8b93b8] hover:border-[#4a5280]"
+                : "border-[#2c3350] bg-[#141826] text-[#8b93b8] hover:border-[#4a5280]"
             }`}
           >
             {t.label}
@@ -116,12 +108,12 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
         ))}
       </div>
 
-      {/* Silhouettes Stage */}
-      <div className="relative flex items-center justify-around rounded border-2 border-[#2c3350] bg-[#090b14] p-3 shadow-inner">
+      {/* Silhouettes Stage with Pedestal & Pixel Grid */}
+      <div className="relative flex items-center justify-around rounded border-2 border-[#2c3350] bg-[#070912] p-2.5 sm:p-4 shadow-[inset_0_2px_14px_rgba(0,0,0,0.85)]">
         {(viewMode === "both" || viewMode === "front") && (
           <div className="flex flex-col items-center gap-1">
-            <span className="pixel-title text-[7.5px] text-[#cbd5e1] tracking-wider">
-              FRONTAL
+            <span className="pixel-title text-[7.5px] text-[#cbd5e1] tracking-wider font-bold">
+              [FRONTAL]
             </span>
             <FrontSilhouette
               heatmap={heatmap}
@@ -133,8 +125,8 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
 
         {(viewMode === "both" || viewMode === "back") && (
           <div className="flex flex-col items-center gap-1">
-            <span className="pixel-title text-[7.5px] text-[#cbd5e1] tracking-wider">
-              TRASERA
+            <span className="pixel-title text-[7.5px] text-[#cbd5e1] tracking-wider font-bold">
+              [TRASERA]
             </span>
             <BackSilhouette
               heatmap={heatmap}
@@ -146,7 +138,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
       </div>
 
       {/* Muscle selector chips */}
-      <div className="flex gap-1 overflow-x-auto pb-1 px-0.5">
+      <div className="flex gap-1 overflow-x-auto pb-1 px-0.5 scrollbar-none touch-pan-x">
         {(["chest", "back", "shoulders", "arms", "legs"] as Muscle[]).map((m) => {
           const item = heatmap[m];
           const isSel = selectedMuscle === m;
@@ -164,7 +156,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
               }`}
             >
               <span
-                className="h-2 w-2 rounded-full border border-black"
+                className="h-2 w-2 rounded-full border border-black shrink-0"
                 style={{ backgroundColor: item.color }}
               />
               <span>{item.label}</span>
@@ -218,13 +210,13 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="border border-[#2c3350] bg-[#0c0e17]/80 p-1.5">
+            <div className="border border-[#2c3350] bg-[#0c0e17]/80 p-2">
               <div className="pixel-title text-[7px] text-[#8b93b8]">SERIES ÚLTIMOS 7 DÍAS</div>
               <div className="mono text-base font-bold tabular-nums text-white">
                 {cur.setsCount7d} series
               </div>
             </div>
-            <div className="border border-[#2c3350] bg-[#0c0e17]/80 p-1.5">
+            <div className="border border-[#2c3350] bg-[#0c0e17]/80 p-2">
               <div className="pixel-title text-[7px] text-[#8b93b8]">VOLUMEN ACUMULADO</div>
               <div className="mono text-base font-bold tabular-nums text-[var(--gold)]">
                 {cur.volumeKg7d.toLocaleString("es")} kg
@@ -233,7 +225,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
           </div>
 
           <div className="border-t border-[#2c3350] pt-2">
-            <div className="pixel-title text-[7.5px] text-[#8b93b8] mb-0.5">
+            <div className="pixel-title text-[7.5px] text-[#8b93b8] mb-0.5 font-bold">
               DIAGNÓSTICO DEL ENTRENADOR:
             </div>
             <p className="mono text-xs text-[#e2e8f0] leading-relaxed">
@@ -246,7 +238,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
       {onClose && (
         <PixelButton
           variant="gold"
-          className="w-full py-2.5 text-[9px] mt-2"
+          className="w-full py-3 text-xs mt-2 shadow-[2px_2px_0_#000]"
           onClick={onClose}
         >
           VOLVER AL ENTRENAMIENTO
@@ -256,7 +248,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
   );
 }
 
-/* ---------------- FRONT SILHOUETTE (SVG PIXEL ART) ---------------- */
+/* ---------------- FRONT SILHOUETTE (SCULPTED PIXEL ART) ---------------- */
 function FrontSilhouette({
   heatmap,
   selected,
@@ -271,189 +263,228 @@ function FrontSilhouette({
   const arCol = heatmap.arms.color;
   const lgCol = heatmap.legs.color;
 
+  const isSelSh = selected === "shoulders";
+  const isSelCh = selected === "chest";
+  const isSelAr = selected === "arms";
+  const isSelLg = selected === "legs";
+
   return (
     <svg
-      width="130"
-      height="190"
-      viewBox="0 0 60 90"
-      className="pixelated cursor-pointer select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+      viewBox="0 0 64 96"
+      className="pixelated cursor-pointer select-none drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)] w-32 sm:w-36 max-w-[140px] h-auto"
       shapeRendering="crispEdges"
     >
-      {/* Background shadow silhouette border */}
+      {/* Dark background silhouette shadow for crisp retro arcade outline */}
       <path
-        d="M26 4h8v12h-8z M28 16h4v4h-4z M12 20h36v12h-36z M8 32h44v24h-44z M18 48h24v38h-24z"
-        fill="#040609"
-        opacity="0.8"
+        d="M26 3h12v12h-12z M12 16h40v12h-40z M9 28h46v24h-46z M18 50h28v42h-28z"
+        fill="#000000"
+        opacity="0.6"
       />
 
-      {/* Head & Neck */}
-      <rect x="26" y="4" width="8" height="11" fill="#e0a370" stroke="#000" strokeWidth="1" />
-      <rect x="28" y="7" width="1.5" height="1.5" fill="#111" />
-      <rect x="31" y="7" width="1.5" height="1.5" fill="#111" />
-      <rect x="28" y="15" width="4" height="4" fill="#b2703f" stroke="#000" strokeWidth="1" />
+      {/* Head, Hair & Facial features */}
+      <rect x="26" y="3" width="12" height="5" fill="#241711" />
+      <rect x="25" y="5" width="2" height="4" fill="#241711" />
+      <rect x="37" y="5" width="2" height="4" fill="#241711" />
+      <rect x="27" y="7" width="10" height="7" fill="#e5a872" />
+      {/* Eyes & brow */}
+      <rect x="29" y="9" width="1.8" height="1.8" fill="#121622" />
+      <rect x="33.2" y="9" width="1.8" height="1.8" fill="#121622" />
+      <rect x="29" y="8" width="2" height="0.8" fill="#241711" />
+      <rect x="33" y="8" width="2" height="0.8" fill="#241711" />
+      {/* Nose and mouth shadow */}
+      <rect x="31.2" y="11" width="1.6" height="0.8" fill="#b87a4a" />
+      <rect x="30.5" y="12.5" width="3" height="0.8" fill="#8a4f28" />
+      {/* Neck & trapezius slope */}
+      <rect x="29.5" y="14" width="5" height="3" fill="#cb8a56" />
+      <polygon points="27,17 37,17 35,14 29,14" fill="#cb8a56" opacity="0.8" />
 
-      {/* SHOULDERS (Deltoides Anteriores / Laterales) */}
+      {/* ================= SHOULDERS (Deltoides Anteriores y Laterales) ================= */}
       <g
         onClick={() => onSelect("shoulders")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Left shoulder */}
-        <rect
-          x="14"
-          y="19"
-          width="8"
-          height="10"
+        {/* Left Boulder Deltoid */}
+        <polygon
+          points="15,19 22,17 23,26 14,27 12,23"
           fill={shCol}
-          stroke={selected === "shoulders" ? "#fff" : "#000"}
-          strokeWidth={selected === "shoulders" ? "1.5" : "1"}
+          stroke={isSelSh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelSh ? "1.6" : "1"}
         />
-        <rect x="15" y="21" width="3" height="3" fill="#ffffff" opacity="0.25" />
-
-        {/* Right shoulder */}
-        <rect
-          x="38"
-          y="19"
-          width="8"
-          height="10"
+        {/* Right Boulder Deltoid */}
+        <polygon
+          points="42,17 49,19 52,23 50,27 41,26"
           fill={shCol}
-          stroke={selected === "shoulders" ? "#fff" : "#000"}
-          strokeWidth={selected === "shoulders" ? "1.5" : "1"}
+          stroke={isSelSh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelSh ? "1.6" : "1"}
         />
-        <rect x="42" y="21" width="3" height="3" fill="#ffffff" opacity="0.25" />
+        {/* Specular highlights on shoulder caps */}
+        <rect x="15" y="19" width="4" height="2" fill="#ffffff" opacity="0.35" />
+        <rect x="45" y="19" width="4" height="2" fill="#ffffff" opacity="0.35" />
       </g>
 
-      {/* CHEST (Pectorales) */}
+      {/* ================= CHEST (Pectoral Mayor y Menor) ================= */}
       <g
         onClick={() => onSelect("chest")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        <rect
-          x="22"
-          y="19"
-          width="16"
-          height="12"
+        {/* Left Pectoral plate */}
+        <polygon
+          points="22,17 31,17 31,31 22,31 20,26"
           fill={chCol}
-          stroke={selected === "chest" ? "#fff" : "#000"}
-          strokeWidth={selected === "chest" ? "1.5" : "1"}
+          stroke={isSelCh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelCh ? "1.6" : "1"}
         />
-        {/* Sternal line division */}
-        <line x1="30" y1="19" x2="30" y2="31" stroke="#000" strokeWidth="1" />
-        {/* Muscle spec line */}
-        <rect x="23" y="21" width="5" height="2" fill="#fff" opacity="0.3" />
-        <rect x="32" y="21" width="5" height="2" fill="#fff" opacity="0.3" />
+        {/* Right Pectoral plate */}
+        <polygon
+          points="33,17 42,17 44,26 42,31 33,31"
+          fill={chCol}
+          stroke={isSelCh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelCh ? "1.6" : "1"}
+        />
+        {/* Sternal cleft (separation midline) */}
+        <line x1="32" y1="17" x2="32" y2="31" stroke="#000000" strokeWidth="1.2" />
+        {/* Upper clavicular highlights */}
+        <rect x="23" y="18" width="6" height="2" fill="#ffffff" opacity="0.3" />
+        <rect x="35" y="18" width="6" height="2" fill="#ffffff" opacity="0.3" />
+        {/* Lower pectoral shadow fold */}
+        <line x1="22" y1="30" x2="30" y2="30" stroke="#000000" strokeWidth="1" opacity="0.5" />
+        <line x1="34" y1="30" x2="42" y2="30" stroke="#000000" strokeWidth="1" opacity="0.5" />
       </g>
 
-      {/* CORE / ABS (Abdominales) */}
+      {/* ================= CORE / SIX-PACK ABS & SERRATUS ================= */}
       <g>
-        <rect x="23" y="31" width="14" height="15" fill="#1e2438" stroke="#000" strokeWidth="1" />
-        {/* Six pack divider lines */}
-        <line x1="30" y1="31" x2="30" y2="44" stroke="#0c0e17" strokeWidth="1" />
-        <line x1="25" y1="35" x2="35" y2="35" stroke="#0c0e17" strokeWidth="1" />
-        <line x1="25" y1="39" x2="35" y2="39" stroke="#0c0e17" strokeWidth="1" />
+        {/* Torso abdominal wall */}
+        <polygon
+          points="22,31 42,31 39,48 25,48"
+          fill="#1c2336"
+          stroke="#000000"
+          strokeWidth="1"
+        />
+        {/* Linea alba (vertical midline) */}
+        <line x1="32" y1="31" x2="32" y2="47" stroke="#0b0e18" strokeWidth="1.2" />
+        {/* Tendinous intersections (horizontal 6-pack cuts) */}
+        <line x1="25" y1="36" x2="39" y2="36" stroke="#0b0e18" strokeWidth="1" />
+        <line x1="26" y1="41" x2="38" y2="41" stroke="#0b0e18" strokeWidth="1" />
+        {/* Abs highlights */}
+        <rect x="26" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
+        <rect x="34" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
+        <rect x="26" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
+        <rect x="34" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
+        {/* Serratus anterior & Adonis belt */}
+        <line x1="21" y1="34" x2="24" y2="37" stroke="#0b0e18" strokeWidth="0.8" />
+        <line x1="43" y1="34" x2="40" y2="37" stroke="#0b0e18" strokeWidth="0.8" />
+        <line x1="27" y1="45" x2="32" y2="48" stroke="#0b0e18" strokeWidth="1" />
+        <line x1="37" y1="45" x2="32" y2="48" stroke="#0b0e18" strokeWidth="1" />
       </g>
 
-      {/* ARMS (Bíceps y Antebrazos) */}
+      {/* ================= ARMS (Bíceps y Antebrazos) ================= */}
       <g
         onClick={() => onSelect("arms")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Left Arm */}
-        <rect
-          x="8"
-          y="29"
-          width="6"
-          height="13"
+        {/* Left Biceps peak */}
+        <polygon
+          points="13,27 21,26 20,40 11,40 10,34"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
-        <rect
-          x="7"
-          y="42"
-          width="5.5"
-          height="14"
+        {/* Left Forearm sweep */}
+        <polygon
+          points="11,40 20,40 18,53 10,53 9,46"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
+        {/* Left Clenched Fist */}
+        <rect x="9.5" y="53.5" width="7" height="6.5" fill="#e5a872" stroke="#000000" strokeWidth="1" />
 
-        {/* Right Arm */}
-        <rect
-          x="46"
-          y="29"
-          width="6"
-          height="13"
+        {/* Right Biceps peak */}
+        <polygon
+          points="43,26 51,27 54,34 53,40 44,40"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
-        <rect
-          x="47.5"
-          y="42"
-          width="5.5"
-          height="14"
+        {/* Right Forearm sweep */}
+        <polygon
+          points="44,40 53,40 55,46 54,53 46,53"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
+        {/* Right Clenched Fist */}
+        <rect x="47.5" y="53.5" width="7" height="6.5" fill="#e5a872" stroke="#000000" strokeWidth="1" />
+
+        {/* Biceps Specular Highlights */}
+        <rect x="12" y="31" width="3" height="5" fill="#ffffff" opacity="0.3" />
+        <rect x="49" y="31" width="3" height="5" fill="#ffffff" opacity="0.3" />
       </g>
 
-      {/* LEGS (Cuádriceps y Piernas) */}
+      {/* Gym waistband & trunks */}
+      <rect x="25" y="48" width="14" height="4" fill="#0c101d" stroke="#000000" strokeWidth="1" />
+      <line x1="25" y1="48" x2="39" y2="48" stroke="var(--gold)" strokeWidth="1" />
+
+      {/* ================= LEGS (Cuádriceps, Rodillas, Gemelos) ================= */}
       <g
         onClick={() => onSelect("legs")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Left Thigh (Cuádriceps) */}
-        <rect
-          x="19"
-          y="46"
-          width="9"
-          height="18"
+        {/* Left Thigh (Cuádriceps sweep) */}
+        <polygon
+          points="20,52 30,52 30,68 22,68 18,60"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
-        {/* Left Shin */}
-        <rect
-          x="20"
-          y="64"
-          width="7"
-          height="18"
-          fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
-        />
+        {/* Left Kneecap */}
+        <polygon points="22,68 29,68 28,72 23,72" fill={lgCol} stroke="#000" strokeWidth="1" />
 
-        {/* Right Thigh (Cuádriceps) */}
-        <rect
-          x="32"
-          y="46"
-          width="9"
-          height="18"
+        {/* Left Shin & Calf flare */}
+        <polygon
+          points="22,72 29,72 28,88 23,88 19,79"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
-        {/* Right Shin */}
-        <rect
-          x="33"
-          y="64"
-          width="7"
-          height="18"
+        {/* Left Athletic Sneaker */}
+        <rect x="20" y="88.5" width="9" height="4" fill="#121622" stroke="#000" strokeWidth="1" />
+        <line x1="20" y1="92" x2="29" y2="92" stroke="#ffffff" strokeWidth="1" />
+
+        {/* Right Thigh (Cuádriceps sweep) */}
+        <polygon
+          points="34,52 44,52 46,60 42,68 34,68"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
+        {/* Right Kneecap */}
+        <polygon points="35,68 42,68 41,72 36,72" fill={lgCol} stroke="#000" strokeWidth="1" />
+
+        {/* Right Shin & Calf flare */}
+        <polygon
+          points="35,72 42,72 45,79 41,88 36,88"
+          fill={lgCol}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
+        />
+        {/* Right Athletic Sneaker */}
+        <rect x="35" y="88.5" width="9" height="4" fill="#121622" stroke="#000" strokeWidth="1" />
+        <line x1="35" y1="92" x2="44" y2="92" stroke="#ffffff" strokeWidth="1" />
+
+        {/* Vastus Medialis (Teardrop) Highlights */}
+        <rect x="25.5" y="63" width="3.5" height="3.5" fill="#ffffff" opacity="0.35" />
+        <rect x="35" y="63" width="3.5" height="3.5" fill="#ffffff" opacity="0.35" />
       </g>
     </svg>
   );
 }
 
-/* ---------------- BACK SILHOUETTE (SVG PIXEL ART) ---------------- */
+/* ---------------- BACK SILHOUETTE (SCULPTED PIXEL ART) ---------------- */
 function BackSilhouette({
   heatmap,
   selected,
@@ -468,194 +499,197 @@ function BackSilhouette({
   const arCol = heatmap.arms.color;
   const lgCol = heatmap.legs.color;
 
+  const isSelBk = selected === "back";
+  const isSelSh = selected === "shoulders";
+  const isSelAr = selected === "arms";
+  const isSelLg = selected === "legs";
+
   return (
     <svg
-      width="130"
-      height="190"
-      viewBox="0 0 60 90"
-      className="pixelated cursor-pointer select-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+      viewBox="0 0 64 96"
+      className="pixelated cursor-pointer select-none drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)] w-32 sm:w-36 max-w-[140px] h-auto"
       shapeRendering="crispEdges"
     >
-      {/* Background shadow */}
+      {/* Dark background silhouette shadow */}
       <path
-        d="M26 4h8v12h-8z M28 16h4v4h-4z M12 20h36v12h-36z M8 32h44v24h-44z M18 48h24v38h-24z"
-        fill="#040609"
-        opacity="0.8"
+        d="M26 3h12v12h-12z M12 16h40v12h-40z M9 28h46v24h-46z M18 50h28v42h-28z"
+        fill="#000000"
+        opacity="0.6"
       />
 
-      {/* Head back & Neck */}
-      <rect x="26" y="4" width="8" height="11" fill="#4a3728" stroke="#000" strokeWidth="1" />
-      <rect x="28" y="15" width="4" height="4" fill="#b2703f" stroke="#000" strokeWidth="1" />
+      {/* Head Back & Hair fade */}
+      <rect x="26" y="3" width="12" height="9" fill="#241711" stroke="#000" strokeWidth="1" />
+      <rect x="28" y="12" width="8" height="3" fill="#19100b" />
+      <rect x="29.5" y="14" width="5" height="3" fill="#cb8a56" />
 
-      {/* SHOULDERS BACK (Deltoides Posteriores) */}
+      {/* ================= REAR SHOULDERS (Deltoides Posteriores) ================= */}
       <g
         onClick={() => onSelect("shoulders")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        <rect
-          x="14"
-          y="19"
-          width="7"
-          height="9"
+        <polygon
+          points="15,19 23,17 22,26 13,26 12,22"
           fill={shCol}
-          stroke={selected === "shoulders" ? "#fff" : "#000"}
-          strokeWidth={selected === "shoulders" ? "1.5" : "1"}
+          stroke={isSelSh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelSh ? "1.6" : "1"}
         />
-        <rect
-          x="39"
-          y="19"
-          width="7"
-          height="9"
+        <polygon
+          points="41,17 49,19 52,22 51,26 42,26"
           fill={shCol}
-          stroke={selected === "shoulders" ? "#fff" : "#000"}
-          strokeWidth={selected === "shoulders" ? "1.5" : "1"}
+          stroke={isSelSh ? "#ffffff" : "#000000"}
+          strokeWidth={isSelSh ? "1.6" : "1"}
         />
+        <rect x="15" y="19" width="3.5" height="2" fill="#ffffff" opacity="0.3" />
+        <rect x="45.5" y="19" width="3.5" height="2" fill="#ffffff" opacity="0.3" />
       </g>
 
-      {/* BACK (Trapecios, Dorsales y Lumbar) */}
+      {/* ================= BACK (Trapecio y Dorsales "Lats" en V) ================= */}
       <g
         onClick={() => onSelect("back")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Trapezius V-shape */}
+        {/* Upper Diamond Trapezius */}
         <polygon
-          points="25,19 35,19 38,26 30,32 22,26"
+          points="29,15 35,15 39,22 32,31 25,22"
           fill={bkCol}
-          stroke={selected === "back" ? "#fff" : "#000"}
-          strokeWidth={selected === "back" ? "1.5" : "1"}
+          stroke={isSelBk ? "#ffffff" : "#000000"}
+          strokeWidth={isSelBk ? "1.6" : "1"}
         />
-        {/* Lats (Dorsal ancho) */}
-        <rect
-          x="21"
-          y="27"
-          width="18"
-          height="12"
+
+        {/* Flared V-Taper Lats (Dorsales anchos) */}
+        <polygon
+          points="23,22 41,22 47,31 40,44 24,44 17,31"
           fill={bkCol}
-          stroke={selected === "back" ? "#fff" : "#000"}
-          strokeWidth={selected === "back" ? "1.5" : "1"}
+          stroke={isSelBk ? "#ffffff" : "#000000"}
+          strokeWidth={isSelBk ? "1.6" : "1"}
         />
-        {/* Lower back / Lumbar */}
-        <rect
-          x="24"
-          y="39"
-          width="12"
-          height="7"
+
+        {/* Lower Back / Erector Spinae (Árbol de Navidad lumbar) */}
+        <polygon
+          points="24,44 40,44 38,49 26,49"
           fill={bkCol}
-          stroke={selected === "back" ? "#fff" : "#000"}
-          strokeWidth={selected === "back" ? "1.5" : "1"}
+          stroke={isSelBk ? "#ffffff" : "#000000"}
+          strokeWidth={isSelBk ? "1.6" : "1"}
         />
-        {/* Spine line */}
-        <line x1="30" y1="20" x2="30" y2="45" stroke="#000" strokeWidth="1" />
+
+        {/* Spine line division */}
+        <line x1="32" y1="16" x2="32" y2="48" stroke="#000000" strokeWidth="1.2" />
+
+        {/* Lats Wing Highlights */}
+        <rect x="19" y="28" width="4" height="6" fill="#ffffff" opacity="0.25" />
+        <rect x="41" y="28" width="4" height="6" fill="#ffffff" opacity="0.25" />
       </g>
 
-      {/* ARMS BACK (Tríceps y Antebrazo posterior) */}
+      {/* ================= ARMS BACK (Tríceps y Antebrazos) ================= */}
       <g
         onClick={() => onSelect("arms")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Left Triceps */}
-        <rect
-          x="8"
-          y="28"
-          width="6"
-          height="14"
+        {/* Left Triceps Horseshoe */}
+        <polygon
+          points="13,26 21,26 20,40 11,40 10,33"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
-        <rect
-          x="7"
-          y="42"
-          width="5.5"
-          height="14"
+        {/* Left Forearm Posterior */}
+        <polygon
+          points="11,40 20,40 18,53 10,53 9,46"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
+        <rect x="9.5" y="53.5" width="7" height="6.5" fill="#e5a872" stroke="#000000" strokeWidth="1" />
 
-        {/* Right Triceps */}
-        <rect
-          x="46"
-          y="28"
-          width="6"
-          height="14"
+        {/* Right Triceps Horseshoe */}
+        <polygon
+          points="43,26 51,26 54,33 53,40 44,40"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
-        <rect
-          x="47.5"
-          y="42"
-          width="5.5"
-          height="14"
+        {/* Right Forearm Posterior */}
+        <polygon
+          points="44,40 53,40 55,46 54,53 46,53"
           fill={arCol}
-          stroke={selected === "arms" ? "#fff" : "#000"}
-          strokeWidth={selected === "arms" ? "1.5" : "1"}
+          stroke={isSelAr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelAr ? "1.6" : "1"}
         />
+        <rect x="47.5" y="53.5" width="7" height="6.5" fill="#e5a872" stroke="#000000" strokeWidth="1" />
+
+        {/* Triceps Specular Highlights */}
+        <rect x="12" y="30" width="3" height="6" fill="#ffffff" opacity="0.3" />
+        <rect x="49" y="30" width="3" height="6" fill="#ffffff" opacity="0.3" />
       </g>
 
-      {/* LEGS BACK (Glúteos, Femorales y Gemelos) */}
+      {/* Gym Shorts Back */}
+      <rect x="25" y="49" width="14" height="3" fill="#0c101d" stroke="#000" strokeWidth="1" />
+
+      {/* ================= LEGS BACK (Glúteos, Femorales y Gemelos) ================= */}
       <g
         onClick={() => onSelect("legs")}
         className="transition-transform active:scale-95"
         style={{ cursor: "pointer" }}
       >
-        {/* Glutes */}
-        <rect
-          x="19"
-          y="46"
-          width="22"
-          height="10"
+        {/* Powerful Gluteus Maximus (Left & Right) */}
+        <polygon
+          points="20,52 32,52 32,63 19,63 18,57"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
-        <line x1="30" y1="46" x2="30" y2="56" stroke="#000" strokeWidth="1" />
+        <polygon
+          points="32,52 44,52 46,57 45,63 32,63"
+          fill={lgCol}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
+        />
+        {/* Gluteal cleft */}
+        <line x1="32" y1="52" x2="32" y2="63" stroke="#000000" strokeWidth="1.2" />
 
-        {/* Left Hamstring (Femoral) */}
-        <rect
-          x="19"
-          y="56"
-          width="9"
-          height="10"
+        {/* Hamstrings (Femorales / Isquiosurales) */}
+        <polygon
+          points="19,63 30,63 29,73 21,73"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
-        {/* Left Calf (Gemelo) */}
-        <rect
-          x="19.5"
-          y="66"
-          width="7.5"
-          height="16"
+        <polygon
+          points="34,63 45,63 43,73 35,73"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
 
-        {/* Right Hamstring (Femoral) */}
-        <rect
-          x="32"
-          y="56"
-          width="9"
-          height="10"
+        {/* Diamond Gastrocnemius Calves (Gemelos) */}
+        <polygon
+          points="21,73 29,73 28,84 23,84 18,78"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
-        {/* Right Calf (Gemelo) */}
-        <rect
-          x="33"
-          y="66"
-          width="7.5"
-          height="16"
+        {/* Left Achilles tendon */}
+        <rect x="23" y="84" width="5" height="4" fill={lgCol} stroke="#000" strokeWidth="1" />
+        <rect x="20" y="88.5" width="9" height="4" fill="#121622" stroke="#000" strokeWidth="1" />
+        <line x1="20" y1="92" x2="29" y2="92" stroke="#ffffff" strokeWidth="1" />
+
+        <polygon
+          points="35,73 43,73 46,78 41,84 36,84"
           fill={lgCol}
-          stroke={selected === "legs" ? "#fff" : "#000"}
-          strokeWidth={selected === "legs" ? "1.5" : "1"}
+          stroke={isSelLg ? "#ffffff" : "#000000"}
+          strokeWidth={isSelLg ? "1.6" : "1"}
         />
+        {/* Right Achilles tendon */}
+        <rect x="36" y="84" width="5" height="4" fill={lgCol} stroke="#000" strokeWidth="1" />
+        <rect x="35" y="88.5" width="9" height="4" fill="#121622" stroke="#000" strokeWidth="1" />
+        <line x1="35" y1="92" x2="44" y2="92" stroke="#ffffff" strokeWidth="1" />
+
+        {/* Calf Diamond Highlights */}
+        <rect x="22" y="76" width="3.5" height="3" fill="#ffffff" opacity="0.3" />
+        <rect x="38.5" y="76" width="3.5" height="3" fill="#ffffff" opacity="0.3" />
       </g>
     </svg>
   );
