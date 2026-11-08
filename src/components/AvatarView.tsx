@@ -9,6 +9,7 @@ import { fxAt, haptic, sfx } from "@/lib/fx";
 import Avatar from "./Avatar";
 import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
 import { Sheet } from "./GymView";
+import MuscleHeatmap from "./MuscleHeatmap";
 
 const SLOTS: { id: Slot; label: string }[] = [
   { id: "shirt", label: "ROPA" }, { id: "belt", label: "CINTO" }, { id: "wrist", label: "MUÑECA" },
@@ -103,6 +104,11 @@ export default function AvatarView() {
 
       {/* VITRINA DE TROFEOS SEMANALES */}
       <TrophyCabinet trophies={trophies} />
+
+      {/* MAPA DE CALOR MUSCULAR ANATÓMICO (RECUPERACIÓN & FATIGA 7 DÍAS) */}
+      <Panel className="p-4">
+        <MuscleHeatmap />
+      </Panel>
 
       <Panel className="space-y-2 p-4">
         <h3 className="pixel-title text-[10px] text-[var(--gold)]">HIPERTROFIA</h3>

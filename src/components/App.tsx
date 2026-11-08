@@ -11,7 +11,7 @@ import RankView from "./RankView";
 import HistoryView from "./HistoryView";
 import FxLayer from "./FxLayer";
 import GymIntro from "./GymIntro";
-import { APPLE_BOUNCE, APPLE_TAP, SPRING } from "./ui";
+import { APPLE_BOUNCE, APPLE_SPRING, APPLE_TAP, SPRING } from "./ui";
 
 const TABS = [
   { id: "gym", label: "GYM", icon: "⚔" },
@@ -135,7 +135,7 @@ export default function App() {
 
 function HUD() {
   const st = useStats();
-  const { gold, name } = useGame(useShallow((s) => ({ gold: s.gold, name: s.name })));
+  const { gold, name, streak } = useGame(useShallow((s) => ({ gold: s.gold, name: s.name, streak: s.streak })));
   return (
     <motion.header
       className="hud sticky top-0 z-30 flex items-center justify-between px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))]"
@@ -144,20 +144,28 @@ function HUD() {
       transition={SPRING}
     >
       <div className="flex items-center gap-2">
-        <img
-          src="/icon-64.png"
-          alt="PixelGym Logo"
-          width={26}
-          height={26}
-          className="pixelated border-2 border-black shadow-[2px_2px_0_#000]"
-        />
-        <div className="pixel-title text-[10px] text-[var(--gold)]">
-          PIXELGYM<span className="text-[var(--red)]">RPG</span>
-        </div>
+        <span className="pixel-title text-[9px] text-white font-bold">{name}</span>
+        <motion.span
+          whileHover={{ scale: 1.08 }}
+          transition={APPLE_SPRING}
+          className="pixel-title text-[7.5px] text-[var(--gold)] border border-[#2c3350] bg-[#10131f] px-1.5 py-0.5 shadow-[1px_1px_0_#000]"
+        >
+          LV {st.level}
+        </motion.span>
       </div>
       <div className="flex items-center gap-3">
-        <motion.span whileHover={{ scale: 1.05 }} className="pixel-title text-[8px] text-white">{name} LV{st.level}</motion.span>
-        <motion.span key={gold} initial={{ scale: 1.5, y: -2 }} animate={{ scale: 1, y: 0 }} transition={APPLE_BOUNCE} className="mono text-base tabular-nums text-[var(--gold)]">● {gold}</motion.span>
+        <span className="pixel-title text-[8px] text-[#8b93b8]">
+          🔥 <b className="text-[var(--gold)]">{streak}D</b>
+        </span>
+        <motion.span
+          key={gold}
+          initial={{ scale: 1.5, y: -2 }}
+          animate={{ scale: 1, y: 0 }}
+          transition={APPLE_BOUNCE}
+          className="mono text-base tabular-nums text-[var(--gold)]"
+        >
+          ● {gold}
+        </motion.span>
       </div>
     </motion.header>
   );

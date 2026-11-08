@@ -1,5 +1,5 @@
 "use client";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
@@ -7,10 +7,12 @@ import { allRoutines, useGame } from "@/lib/store";
 import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, titleOf } from "@/lib/data";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
+import { getSetOverloadAdvice } from "@/lib/overload";
 import Avatar from "./Avatar";
 import { PixelButton, Panel, Bar, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
 import PlateCalculator from "./PlateCalculator";
 import RaidBossView from "./RaidBoss";
+import MuscleHeatmap from "./MuscleHeatmap";
 import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
 
 export default function GymView() {
@@ -31,6 +33,7 @@ function RoutinePicker() {
   const stats = useStats();
   const [creating, setCreating] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const [tab, setTab] = useState<"routines" | "boss">("routines");
 
   const prev = stats.level > 1 ? expForLevel(stats.level - 1) : 0;
@@ -261,7 +264,22 @@ function RoutinePicker() {
                 className="flex items-center justify-between"
               >
                 <h2 className="pixel-title text-xs text-[var(--gold)]">▶ ELIGE TU MISIÓN</h2>
-                <span className="mono text-xs text-[#8b93b8]">{routines.length} rutinas</span>
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    transition={APPLE_TAP}
+                    onClick={() => {
+                      setShowHeatmap(true);
+                      sfx.whoosh();
+                      haptic(8);
+                    }}
+                    className="pixel-title flex items-center gap-1 border border-[#2c3350] bg-[#141826] px-2 py-1 text-[7.5px] text-[var(--cyan)] hover:border-[var(--cyan)] shadow-[1px_1px_0_#000]"
+                  >
+                    <span>🧬 MAPA DE CALOR</span>
+                  </motion.button>
+                  <span className="mono text-xs text-[#8b93b8]">{routines.length} rutinas</span>
+                </div>
               </motion.div>
               <div className="grid grid-cols-2 gap-3">
                 {routines.map((r, i) => (
@@ -354,6 +372,11 @@ function RoutinePicker() {
             initial={editingRoutine}
             onClose={() => setEditingRoutine(null)}
           />
+        )}
+        {showHeatmap && (
+          <Sheet title="MAPA DE CALOR MUSCULAR" onClose={() => setShowHeatmap(false)}>
+            <MuscleHeatmap onClose={() => setShowHeatmap(false)} />
+          </Sheet>
         )}
       </AnimatePresence>
     </div>
@@ -628,12 +651,20 @@ function Elapsed({ since }: { since: number }) {
 const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: number; total: number }) {
   const entry = useGame((s) => s.active?.exercises[index]);
   const best = useGame((s) => entry ? s.best[entry.exId] : undefined);
+  const history = useGame((s) => s.history || []);
   const addSet = useGame((s) => s.addSet);
   const removeEx = useGame((s) => s.removeExercise);
   const reorder = useGame((s) => s.reorderActiveExercises);
   const restTimeByEx = useGame((s) => s.restTimeByEx);
   const setRestTimeForEx = useGame((s) => s.setRestTimeForEx);
   const [calcKg, setCalcKg] = useState<number | null>(null);
+
+  const pendingSetIndex = Math.max(0, entry?.sets.findIndex((s) => !s.done) ?? 0);
+  const currentTargetSet = entry?.sets[pendingSetIndex] ?? entry?.sets[0];
+  const overloadAdvice = useMemo(
+    () => entry ? getSetOverloadAdvice(history, entry.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps) : null,
+    [history, entry?.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps]
+  );
 
   if (!entry) return null;
   const ex = EX[entry.exId];
@@ -715,6 +746,33 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
           </motion.button>
         </div>
 
+        {/* Smart Progressive Overload Objective */}
+        {overloadAdvice && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-2.5 rounded border border-[#2c3350] bg-[#0c0e17] p-2 text-left shadow-[2px_2px_0_#000]"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="pixel-title text-[7.5px] text-[var(--gold)] flex items-center gap-1 font-bold">
+                <span>🎯</span> RETO SOBRECARGA PROGRESIVA
+              </span>
+              {overloadAdvice.hasHistory ? (
+                <span className="pixel-title text-[7px] text-[#7dff6a] border border-[#3a7a30] bg-[#15291a] px-1 py-0.5">
+                  SERIE {pendingSetIndex + 1}
+                </span>
+              ) : (
+                <span className="pixel-title text-[7px] text-[#8b93b8]">
+                  LÍNEA BASE
+                </span>
+              )}
+            </div>
+            <p className="mono text-[10.5px] sm:text-xs leading-tight text-[#cbd5e1]">
+              {overloadAdvice.summaryText}
+            </p>
+          </motion.div>
+        )}
+
         <div className="mono grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 px-0.5 text-xs text-[#8b93b8]">
           <span className="text-center">#</span><span className="text-center">KG</span><span className="text-center">REPS</span><span className="text-center">RIR</span><span />
         </div>
@@ -736,12 +794,18 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
 const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
   const s = useGame((st) => st.active?.exercises[i]?.sets[j]);
   const exId = useGame((st) => st.active?.exercises[i]?.exId);
+  const history = useGame((st) => st.history || []);
   const restTimeByEx = useGame((st) => st.restTimeByEx);
   const update = useGame((st) => st.updateSet);
   const complete = useGame((st) => st.completeSet);
   const remove = useGame((st) => st.removeSet);
   const startRest = useGame((st) => st.startRest);
   if (!s) return null;
+
+  const overloadAdvice = useMemo(
+    () => getSetOverloadAdvice(history, exId || "", j, s.kg, s.reps, s.done),
+    [history, exId, j, s.kg, s.reps, s.done]
+  );
 
   const step = (patch: { kg?: number; reps?: number }) => { update(i, j, patch); sfx.tick(); haptic(4); };
 
@@ -759,12 +823,18 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
     sfx.set(); haptic(res.pr ? [15, 30, 15, 30, 40] : 12);
     const restSeconds = exId ? (restTimeByEx[exId] ?? defaultRestForExercise(EX[exId])) : 90;
     startRest(restSeconds);
-    fxAt(el, (x, y) => [
-      { kind: "burst", x, y, color: res.pr ? "#ff3f6c" : "#7dff6a", count: res.pr ? 40 : 16, big: res.pr },
-      { kind: "text", x, y: y - 16, text: `+${res.exp} EXP`, color: "#7dff6a" },
-      { kind: "text", x: x - 60, y: y + 4, text: `+${res.gold}G`, color: "#ffe14d" },
-      { kind: "shake", power: res.pr ? 3 : 2 },
-    ]);
+    fxAt(el, (x, y) => {
+      const effects: any[] = [
+        { kind: "burst", x, y, color: res.pr ? "#ff3f6c" : "#7dff6a", count: res.pr ? 40 : 16, big: res.pr },
+        { kind: "text", x, y: y - 16, text: `+${res.exp} EXP`, color: "#7dff6a" },
+        { kind: "text", x: x - 60, y: y + 4, text: `+${res.gold}G`, color: "#ffe14d" },
+        { kind: "shake", power: res.pr ? 3 : 2 },
+      ];
+      if (overloadAdvice.achieved) {
+        effects.push({ kind: "text", x: x + 15, y: y - 36, text: "🔥 ¡SOBRECARGA!", color: "#ffe14d" });
+      }
+      return effects;
+    });
     if (res.pr) {
       setTimeout(() => { sfx.pr(); fx({ kind: "pr", name: EX[exId!]?.name ?? "" }); fxAt(el, (x, y) => [{ kind: "text", x, y: y - 40, text: `+${res.strGain} STR`, color: "#ff3f6c" }]); }, 120);
     }
@@ -778,9 +848,24 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
       transition={SPRING}
       drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.5, right: 0 }} dragSnapToOrigin
       onDragEnd={(_, info) => { if (info.offset.x < -90 && !s.done) { remove(i, j); sfx.whoosh(); } }}
-      className={`grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 border-2 p-1 ${s.done ? "border-[#3a7a30] bg-[#15291a]" : "border-[#2c3350] bg-[#10131f]"}`}
+      className={`grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 border-2 p-1 transition-colors ${
+        s.done
+          ? overloadAdvice.achieved
+            ? "border-[var(--gold)] bg-[#241e0a] shadow-[0_0_8px_rgba(255,225,77,0.2)]"
+            : "border-[#3a7a30] bg-[#15291a]"
+          : "border-[#2c3350] bg-[#10131f]"
+      }`}
     >
-      <span className="pixel-title text-center text-[10px] text-[#8b93b8]">{j + 1}</span>
+      <div className="flex flex-col items-center justify-center">
+        <span className={`pixel-title text-center text-[10px] ${s.done && overloadAdvice.achieved ? "text-[var(--gold)] font-bold" : "text-[#8b93b8]"}`}>
+          {j + 1}
+        </span>
+        {s.done && overloadAdvice.achieved ? (
+          <span className="text-[6.5px] leading-none" title="¡Sobrecarga conseguida!">🔥</span>
+        ) : overloadAdvice.hasHistory && !s.done ? (
+          <span className="text-[6.5px] leading-none text-[var(--gold)]" title={`Meta: ${overloadAdvice.targetKg}kg × ${overloadAdvice.prevReps} ó ${overloadAdvice.prevKg}kg × ${overloadAdvice.targetReps}`}>🎯</span>
+        ) : null}
+      </div>
       <Stepper value={s.kg} unit="" onMinus={() => step({ kg: s.kg - 2.5 })} onPlus={() => step({ kg: s.kg + 2.5 })} onSet={(v) => update(i, j, { kg: v })} disabled={s.done} decimals />
       <Stepper value={s.reps} unit="" onMinus={() => step({ reps: s.reps - 1 })} onPlus={() => step({ reps: s.reps + 1 })} onSet={(v) => update(i, j, { reps: v })} disabled={s.done} />
 
