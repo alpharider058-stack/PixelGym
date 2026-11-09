@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
 import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, tierOf, titleOf } from "@/lib/data";
@@ -36,7 +36,7 @@ export default function AvatarView() {
   const next = expForLevel(st.level);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-5">
       <Panel className="flex flex-col items-center gap-3 p-4">
         <div className="flex w-full items-center justify-between">
           <input className="pixel-title w-40 bg-transparent text-xs text-white outline-none" defaultValue={name} onBlur={(e) => setName(e.target.value)} maxLength={12} aria-label="Nombre" />
@@ -338,27 +338,29 @@ function Armory({ level }: { level: number }) {
   return (
     <Panel className="p-4">
       <h3 className="pixel-title mb-3 text-[10px] text-[var(--gold)]">ARMERÍA · <span className="text-white">{gold}G</span></h3>
-      <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
-        {SLOTS.map((s) => (
-          <motion.button
-            key={s.id}
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.92 }}
-            transition={APPLE_TAP}
-            onClick={() => { setSlot(s.id); sfx.tick(); }}
-            className={`relative shrink-0 px-2 py-2 pixel-title text-[8px] ${slot === s.id ? "text-black font-bold" : "text-[#8b93b8]"}`}
-          >
-            {slot === s.id && (
-              <motion.span
-                layoutId="slot-pill"
-                className="absolute inset-0 bg-[var(--gold)] border border-black shadow-[1px_1px_0_#000]"
-                transition={APPLE_SPRING}
-              />
-            )}
-            <span className="relative">{s.label}</span>
-          </motion.button>
-        ))}
-      </div>
+      <LayoutGroup id="armory-slots">
+        <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
+          {SLOTS.map((s) => (
+            <motion.button
+              key={s.id}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.92 }}
+              transition={APPLE_TAP}
+              onClick={() => { setSlot(s.id); sfx.tick(); }}
+              className={`relative shrink-0 px-2 py-2 pixel-title text-[8px] ${slot === s.id ? "text-black font-bold" : "text-[#8b93b8]"}`}
+            >
+              {slot === s.id && (
+                <motion.span
+                  layoutId="slot-pill"
+                  className="absolute inset-0 bg-[var(--gold)] border border-black shadow-[1px_1px_0_#000]"
+                  transition={APPLE_SPRING}
+                />
+              )}
+              <span className="relative">{s.label}</span>
+            </motion.button>
+          ))}
+        </div>
+      </LayoutGroup>
       <div className="grid grid-cols-2 gap-2">
         {ITEMS.filter((i) => i.slot === slot).map((it) => {
           const has = owned.includes(it.id), on = equipped[slot] === it.id, locked = level < it.minLevel;

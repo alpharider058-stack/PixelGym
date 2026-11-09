@@ -102,7 +102,7 @@ export default function HistoryView() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-5">
       <Panel className="p-4">
         <h3 className="pixel-title mb-3 text-[10px] text-[var(--gold)]">TONELAJE · ÚLTIMAS SESIONES</h3>
         {last.length ? (
@@ -141,7 +141,7 @@ export default function HistoryView() {
         </div>
       </Panel>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-3">
         <h3 className="pixel-title text-[10px] text-[var(--gold)]">HISTORIAL</h3>
         <AnimatePresence initial={false}>
           {history.map((h) => (

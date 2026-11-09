@@ -46,10 +46,13 @@ interface State {
   deletedRoutineIds: string[];
   trophies: Trophy[];
   sound: boolean;
+  focusMode: boolean;
 
   setName: (n: string) => void;
   setBodyweight: (bw: number) => void;
   toggleSound: () => void;
+  setFocusMode: (v: boolean) => void;
+  claimBossVictory: (gold: number, exp: number) => boolean;
   setRestTimeForEx: (exId: string, sec: number) => void;
   reorderActiveExercises: (fromIndex: number, toIndex: number) => void;
   claimQuest: (id: string) => boolean;
@@ -95,10 +98,23 @@ export const useGame = create<State>()(
       deletedRoutineIds: [],
       trophies: [],
       sound: true,
+      focusMode: true,
 
       setName: (name) => set({ name: name.slice(0, 12).toUpperCase() || "HÉROE" }),
       setBodyweight: (bw) => set({ bodyweight: Math.max(30, Math.min(250, Math.round(bw * 10) / 10)) }),
       toggleSound: () => set((s) => ({ sound: !s.sound })),
+      setFocusMode: (v) => set({ focusMode: v }),
+      claimBossVictory: (gold, exp) => {
+        const s = get();
+        if (s.bossDefeated) return false;
+        set({
+          bossDefeated: true,
+          gold: s.gold + gold,
+          exp: s.exp + exp,
+          weeklyExp: s.weeklyExp + exp,
+        });
+        return true;
+      },
       setRestTimeForEx: (exId, sec) => set((s) => ({ restTimeByEx: { ...s.restTimeByEx, [exId]: sec } })),
       reorderActiveExercises: (from, to) => set((s) => {
         if (!s.active) return {};
@@ -150,6 +166,7 @@ export const useGame = create<State>()(
       startWorkout: (r) => {
         const st = get();
         set({
+          focusMode: true,
           active: {
             routineId: r.id, name: r.name, startedAt: Date.now(),
             exercises: r.exercises.map((exId) => ({ exId, sets: [mkSet(st, exId)] })),

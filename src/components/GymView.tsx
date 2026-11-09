@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { allRoutines, useGame } from "@/lib/store";
-import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, titleOf } from "@/lib/data";
+import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, isBodyweight, titleOf } from "@/lib/data";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { getSetOverloadAdvice } from "@/lib/overload";
@@ -12,7 +12,6 @@ import Avatar from "./Avatar";
 import { PixelButton, Panel, Bar, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
 import PlateCalculator from "./PlateCalculator";
 import RaidBossView from "./RaidBoss";
-import MuscleHeatmap from "./MuscleHeatmap";
 import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
 
 export default function GymView() {
@@ -33,7 +32,6 @@ function RoutinePicker() {
   const stats = useStats();
   const [creating, setCreating] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const [tab, setTab] = useState<"routines" | "boss">("routines");
 
   const prev = stats.level > 1 ? expForLevel(stats.level - 1) : 0;
@@ -45,7 +43,7 @@ function RoutinePicker() {
   const firstRoutine = routines[0];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-5">
       {/* 8 & 9. Top Hero Profile Card: Shield expands into frame & Avatar glides into idle */}
       <motion.div
         layoutId="hero-shield-panel"
@@ -117,11 +115,10 @@ function RoutinePicker() {
         </div>
       </motion.div>
 
-      {/* TABS SELECTOR: RUTINAS vs RAID BOSS & MISIONES */}
-      <div className="mt-6 mb-2 grid grid-cols-2 gap-2.5 px-0.5">
+      {/* TABS SELECTOR: RUTINAS vs RAID BOSS & MISIONES (strict fixed dimensions) */}
+      <div className="grid grid-cols-2 gap-2.5 px-0.5">
         <motion.button
-          whileHover={{ scale: 1.015, y: -1 }}
-          whileTap={{ scale: 0.94, y: 1 }}
+          whileTap={{ scale: 0.97 }}
           transition={APPLE_TAP}
           onClick={(e) => {
             if (tab !== "routines") {
@@ -131,40 +128,36 @@ function RoutinePicker() {
               fxAt(e.currentTarget, (x, y) => [{ kind: "burst", x, y, color: "#ffe14d", count: 14 }]);
             }
           }}
-          className={`relative flex items-center justify-between p-2.5 border-2 text-left transition-all ${
+          className={`relative flex h-[58px] items-center justify-between gap-1.5 px-2.5 border-2 text-left transition-colors ${
             tab === "routines"
               ? "border-black bg-gradient-to-b from-[#ffe14d] via-[#facc15] to-[#d4a017] text-black shadow-[3px_3px_0_#000]"
               : "border-[#2c3350] bg-[#141826] text-[#8b93b8] hover:border-[#4a5280] shadow-[2px_2px_0_#000]"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-7 w-7 items-center justify-center border border-black/40 bg-black/15 text-sm shrink-0">
               ⚔
             </span>
             <div className="min-w-0">
-              <div className={`pixel-title text-[8.5px] leading-tight font-bold ${tab === "routines" ? "text-black" : "text-white"}`}>
+              <div className={`pixel-title text-[8.5px] leading-tight font-bold truncate ${tab === "routines" ? "text-black" : "text-white"}`}>
                 RUTINAS
               </div>
-              <div className={`pixel-title text-[6.5px] leading-none ${tab === "routines" ? "text-black/80" : "text-[#8b93b8]"}`}>
+              <div className={`pixel-title text-[6.5px] leading-none mt-0.5 truncate ${tab === "routines" ? "text-black/80" : "text-[#8b93b8]"}`}>
                 MISIÓN & GYM
               </div>
             </div>
           </div>
-          {tab === "routines" && (
-            <motion.span
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={APPLE_BOUNCE}
-              className="pixel-title text-[7px] border border-black/30 bg-black/20 px-1 py-0.5 text-black shrink-0 font-bold"
-            >
-              ACTIVO
-            </motion.span>
-          )}
+          <div className="w-11 flex items-center justify-end shrink-0">
+            {tab === "routines" && (
+              <span className="pixel-title text-[6.5px] border border-black/30 bg-black/20 px-1 py-0.5 text-black font-bold">
+                ACTIVO
+              </span>
+            )}
+          </div>
         </motion.button>
 
         <motion.button
-          whileHover={{ scale: 1.015, y: -1 }}
-          whileTap={{ scale: 0.94, y: 1 }}
+          whileTap={{ scale: 0.97 }}
           transition={APPLE_TAP}
           onClick={(e) => {
             if (tab !== "boss") {
@@ -177,37 +170,34 @@ function RoutinePicker() {
               ]);
             }
           }}
-          className={`relative flex items-center justify-between p-2.5 border-2 text-left transition-all ${
+          className={`relative flex h-[58px] items-center justify-between gap-1.5 px-2.5 border-2 text-left transition-colors ${
             tab === "boss"
               ? "border-black bg-gradient-to-b from-[#ff3f6c] via-[#e11d48] to-[#9f1239] text-white shadow-[3px_3px_0_#000]"
               : "border-[#3d1822] bg-[#160d13] text-[#8b93b8] hover:border-[#ff3f6c] shadow-[2px_2px_0_#000]"
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-7 w-7 items-center justify-center border border-black/40 bg-black/20 text-sm shrink-0">
               👹
             </span>
             <div className="min-w-0">
-              <div className={`pixel-title text-[8.5px] leading-tight font-bold ${tab === "boss" ? "text-white" : "text-[#ff6b8b]"}`}>
+              <div className={`pixel-title text-[8.5px] leading-tight font-bold truncate ${tab === "boss" ? "text-white" : "text-[#ff6b8b]"}`}>
                 RAID BOSS
               </div>
-              <div className={`pixel-title text-[6.5px] leading-none ${tab === "boss" ? "text-white/80" : "text-[#8b93b8]"}`}>
+              <div className={`pixel-title text-[6.5px] leading-none mt-0.5 truncate ${tab === "boss" ? "text-white/80" : "text-[#8b93b8]"}`}>
                 JEFE SEMANAL
               </div>
             </div>
           </div>
-          {tab === "boss" ? (
-            <motion.span
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={APPLE_BOUNCE}
-              className="pixel-title text-[7px] border border-white/30 bg-black/30 px-1 py-0.5 text-white shrink-0 font-bold"
-            >
-              ACTIVO
-            </motion.span>
-          ) : (
-            <span className="h-2 w-2 rounded-full bg-[var(--red)] animate-pulse shrink-0" />
-          )}
+          <div className="w-11 flex items-center justify-end shrink-0">
+            {tab === "boss" ? (
+              <span className="pixel-title text-[6.5px] border border-white/30 bg-black/30 px-1 py-0.5 text-white font-bold">
+                ACTIVO
+              </span>
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-[var(--red)] animate-pulse" />
+            )}
+          </div>
         </motion.button>
       </div>
 
@@ -220,7 +210,7 @@ function RoutinePicker() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 36, scale: 0.98 }}
             transition={APPLE_SPRING}
-            className="space-y-4"
+            className="flex flex-col gap-5"
           >
             <RaidBossView />
           </motion.div>
@@ -231,7 +221,7 @@ function RoutinePicker() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: -36, scale: 0.98 }}
             transition={APPLE_SPRING}
-            className="space-y-4"
+            className="flex flex-col gap-5"
           >
             {/* 10. Main Start Button */}
             {firstRoutine && (
@@ -264,22 +254,7 @@ function RoutinePicker() {
                 className="flex items-center justify-between"
               >
                 <h2 className="pixel-title text-xs text-[var(--gold)]">▶ ELIGE TU MISIÓN</h2>
-                <div className="flex items-center gap-2">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.94 }}
-                    transition={APPLE_TAP}
-                    onClick={() => {
-                      setShowHeatmap(true);
-                      sfx.whoosh();
-                      haptic(8);
-                    }}
-                    className="pixel-title flex items-center gap-1 border border-[#2c3350] bg-[#141826] px-2 py-1 text-[7.5px] text-[var(--cyan)] hover:border-[var(--cyan)] shadow-[1px_1px_0_#000]"
-                  >
-                    <span>🧬 MAPA DE CALOR</span>
-                  </motion.button>
-                  <span className="mono text-xs text-[#8b93b8]">{routines.length} rutinas</span>
-                </div>
+                <span className="mono text-xs text-[#8b93b8]">{routines.length} rutinas</span>
               </motion.div>
               <div className="grid grid-cols-2 gap-3">
                 {routines.map((r, i) => (
@@ -372,11 +347,6 @@ function RoutinePicker() {
             initial={editingRoutine}
             onClose={() => setEditingRoutine(null)}
           />
-        )}
-        {showHeatmap && (
-          <Sheet title="MAPA DE CALOR MUSCULAR" onClose={() => setShowHeatmap(false)}>
-            <MuscleHeatmap onClose={() => setShowHeatmap(false)} />
-          </Sheet>
         )}
       </AnimatePresence>
     </div>
@@ -708,12 +678,25 @@ export function Sheet({ children, onClose, title, footer }: { children: React.Re
 
 /* ---------------- Active logger ---------------- */
 function ActiveLogger() {
-  const { name, startedAt, count } = useGame(useShallow((s) => ({ name: s.active!.name, startedAt: s.active!.startedAt, count: s.active!.exercises.length })));
+  const { name, startedAt, count, doneSetsCount } = useGame(
+    useShallow((s) => ({
+      name: s.active!.name,
+      startedAt: s.active!.startedAt,
+      count: s.active!.exercises.length,
+      doneSetsCount: s.active!.exercises.reduce(
+        (acc, ex) => acc + ex.sets.filter((st) => st.done).length,
+        0
+      ),
+    }))
+  );
+  const focusMode = useGame((s) => s.focusMode);
+  const setFocusMode = useGame((s) => s.setFocusMode);
   const finish = useGame((s) => s.finishWorkout);
   const cancel = useGame((s) => s.cancelWorkout);
   const addExercise = useGame((s) => s.addExercise);
   const [picking, setPicking] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [abandonModal, setAbandonModal] = useState(false);
 
   // Wake Lock API: Keep screen awake during workouts
   useEffect(() => {
@@ -736,32 +719,125 @@ function ActiveLogger() {
     };
   }, []);
 
+  const handleFinish = (el?: HTMLElement) => {
+    const log = finish();
+    if (log) {
+      sfx.levelUp();
+      haptic([20, 40, 20, 40, 60]);
+      if (el) {
+        fxAt(el, (x, y) => [
+          { kind: "burst", x, y, big: true, count: 50 },
+          { kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${log.exp} EXP  +20 ORO`, color: "#ffe14d" },
+          { kind: "shake", power: 3 },
+        ]);
+      } else {
+        fx({ kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${log.exp} EXP  +20 ORO`, color: "#ffe14d" });
+      }
+    }
+  };
+
   return (
-    <div className="space-y-3 pb-4">
-      <Panel className="flex items-center justify-between p-3">
-        <div>
-          <div className="pixel-title text-[10px] text-[var(--gold)]">⚔ {name}</div>
+    <div className="flex flex-col gap-5 pb-4">
+      <Panel className="flex items-center justify-between gap-2 p-3">
+        <div className="min-w-0">
+          <div className="pixel-title text-[10px] text-[var(--gold)] truncate">⚔ {name}</div>
           <Elapsed since={startedAt} />
         </div>
-        <PixelButton variant="gold" className="px-3 py-2 text-[10px]" onClick={(e) => {
-          const log = finish();
-          if (log) {
-            sfx.levelUp(); haptic([20, 40, 20, 40, 60]);
-            fxAt(e.currentTarget, (x, y) => [{ kind: "burst", x, y, big: true, count: 50 }, { kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${log.exp} EXP  +20 ORO`, color: "#ffe14d" }, { kind: "shake", power: 3 }]);
-          }
-        }}>FIN ✓</PixelButton>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <PixelButton
+            variant={focusMode ? "ghost" : "cyan"}
+            className="px-2.5 py-2 text-[9px] flex items-center gap-1"
+            onClick={() => {
+              sfx.tap();
+              haptic(6);
+              setFocusMode(!focusMode);
+            }}
+            title={focusMode ? "Salir del Modo Enfoque para navegar por la app" : "Activar Modo Enfoque"}
+          >
+            <span>{focusMode ? "🧭 SALIR" : "🎯 ENFOQUE"}</span>
+          </PixelButton>
+          <PixelButton
+            variant="gold"
+            className="px-3 py-2 text-[10px]"
+            onClick={(e) => handleFinish(e.currentTarget)}
+          >
+            FIN ✓
+          </PixelButton>
+        </div>
       </Panel>
 
       {Array.from({ length: count }, (_, i) => <ExerciseCard key={i} index={i} total={count} />)}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 mt-1">
         <PixelButton variant="ghost" className="py-3 text-[10px]" onClick={() => setPicking(true)}>＋ EJERCICIO</PixelButton>
-        <PixelButton variant="danger" className="py-3 text-[10px]" onClick={() => confirm ? cancel() : (setConfirm(true), setTimeout(() => setConfirm(false), 2500))}>
+        <PixelButton
+          variant="danger"
+          className="py-3 text-[10px]"
+          onClick={() => {
+            if (doneSetsCount > 0) {
+              setAbandonModal(true);
+            } else if (confirm) {
+              cancel();
+            } else {
+              setConfirm(true);
+              setTimeout(() => setConfirm(false), 2500);
+            }
+          }}
+        >
           {confirm ? "¿SEGURO?" : "ABANDONAR"}
         </PixelButton>
       </div>
       <AnimatePresence>
-        {picking && <Sheet title="AÑADIR EJERCICIO" onClose={() => setPicking(false)}><ExerciseList onPick={(id) => { addExercise(id); setPicking(false); }} /></Sheet>}
+        {picking && (
+          <Sheet title="AÑADIR EJERCICIO" onClose={() => setPicking(false)}>
+            <ExerciseList onPick={(id) => { addExercise(id); setPicking(false); }} />
+          </Sheet>
+        )}
+        {abandonModal && (
+          <Sheet title="¿FINALIZAR ENTRENAMIENTO?" onClose={() => setAbandonModal(false)}>
+            <div className="space-y-4 text-center py-2">
+              <div className="text-3xl">⚠️</div>
+              <div className="space-y-1">
+                <h4 className="pixel-title text-xs text-[var(--gold)]">
+                  LLEVAS {doneSetsCount} {doneSetsCount === 1 ? "SERIE COMPLETADA" : "SERIES COMPLETADAS"}
+                </h4>
+                <p className="mono text-xs text-[#cbd5e1]">
+                  Si descartas la sesión ahora, perderás las marcas registradas en estos ejercicios.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 pt-2">
+                <PixelButton
+                  variant="gold"
+                  className="w-full py-3 text-[10px]"
+                  onClick={(e) => {
+                    setAbandonModal(false);
+                    handleFinish(e.currentTarget);
+                  }}
+                >
+                  ✓ GUARDAR PROGRESO Y TERMINAR
+                </PixelButton>
+                <PixelButton
+                  variant="ghost"
+                  className="w-full py-3 text-[10px]"
+                  onClick={() => setAbandonModal(false)}
+                >
+                  ⚔ SEGUIR ENTRENANDO
+                </PixelButton>
+                <PixelButton
+                  variant="danger"
+                  className="w-full py-3 text-[10px]"
+                  onClick={() => {
+                    setAbandonModal(false);
+                    cancel();
+                    sfx.whoosh();
+                  }}
+                >
+                  ✕ DESCARTAR TODO SIN GUARDAR
+                </PixelButton>
+              </div>
+            </div>
+          </Sheet>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -782,6 +858,7 @@ function Elapsed({ since }: { since: number }) {
 const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: number; total: number }) {
   const entry = useGame((s) => s.active?.exercises[index]);
   const best = useGame((s) => entry ? s.best[entry.exId] : undefined);
+  const bodyweight = useGame((s) => s.bodyweight || 75);
   const history = useGame((s) => s.history || []);
   const addSet = useGame((s) => s.addSet);
   const removeEx = useGame((s) => s.removeExercise);
@@ -799,6 +876,7 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
 
   if (!entry) return null;
   const ex = EX[entry.exId];
+  const isBw = isBodyweight(ex);
   const currentRest = restTimeByEx[entry.exId] ?? defaultRestForExercise(ex);
 
   const cycleRest = () => {
@@ -816,7 +894,11 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
         <div className="mb-2 flex items-start justify-between gap-2">
           <div>
             <div className="mono text-lg leading-tight">{ex?.name ?? entry.exId}</div>
-            <div className="pixel-title text-[8px] text-[#8b93b8]">{ex && MUSCLE_LABEL[ex.muscle]}{best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}</div>
+            <div className="pixel-title text-[8px] text-[#8b93b8]">
+              {ex && MUSCLE_LABEL[ex.muscle]}
+              {isBw ? ` · CALISTENIA (${bodyweight}kg) + LASTRE` : ""}
+              {best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <motion.button
@@ -905,7 +987,11 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
         )}
 
         <div className="mono grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 px-0.5 text-xs text-[#8b93b8]">
-          <span className="text-center">#</span><span className="text-center">KG</span><span className="text-center">REPS</span><span className="text-center">RIR</span><span />
+          <span className="text-center">#</span>
+          <span className="text-center">{isBw ? "+KG" : "KG"}</span>
+          <span className="text-center">REPS</span>
+          <span className="text-center">RIR</span>
+          <span />
         </div>
         <div className="space-y-2">
           <AnimatePresence initial={false}>
@@ -932,6 +1018,9 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
   const remove = useGame((st) => st.removeSet);
   const startRest = useGame((st) => st.startRest);
   if (!s) return null;
+
+  const ex = exId ? EX[exId] : undefined;
+  const isBw = isBodyweight(ex);
 
   const overloadAdvice = useMemo(
     () => getSetOverloadAdvice(history, exId || "", j, s.kg, s.reps, s.done),
@@ -997,8 +1086,24 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
           <span className="text-[6.5px] leading-none text-[var(--gold)]" title={`Meta: ${overloadAdvice.targetKg}kg × ${overloadAdvice.prevReps} ó ${overloadAdvice.prevKg}kg × ${overloadAdvice.targetReps}`}>🎯</span>
         ) : null}
       </div>
-      <Stepper value={s.kg} unit="" onMinus={() => step({ kg: s.kg - 2.5 })} onPlus={() => step({ kg: s.kg + 2.5 })} onSet={(v) => update(i, j, { kg: v })} disabled={s.done} decimals />
-      <Stepper value={s.reps} unit="" onMinus={() => step({ reps: s.reps - 1 })} onPlus={() => step({ reps: s.reps + 1 })} onSet={(v) => update(i, j, { reps: v })} disabled={s.done} />
+      <Stepper
+        value={s.kg}
+        unit=""
+        badge={isBw ? (s.kg === 0 ? "PC" : "+KG") : undefined}
+        onMinus={() => step({ kg: Math.max(0, s.kg - 2.5) })}
+        onPlus={() => step({ kg: s.kg + 2.5 })}
+        onSet={(v) => update(i, j, { kg: Math.max(0, v) })}
+        disabled={s.done}
+        decimals
+      />
+      <Stepper
+        value={s.reps}
+        unit=""
+        onMinus={() => step({ reps: Math.max(0, s.reps - 1) })}
+        onPlus={() => step({ reps: s.reps + 1 })}
+        onSet={(v) => update(i, j, { reps: Math.max(0, v) })}
+        disabled={s.done}
+      />
 
       {/* RIR (Repeticiones en Reserva) */}
       <motion.button
@@ -1048,6 +1153,7 @@ function Stepper({
   onSet,
   disabled,
   decimals,
+  badge,
 }: {
   value: number;
   unit: string;
@@ -1056,15 +1162,16 @@ function Stepper({
   onSet: (v: number) => void;
   disabled?: boolean;
   decimals?: boolean;
+  badge?: string;
 }) {
   const [text, setText] = useState<string>(String(value));
-  const isFocused = useRef(false);
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
-    if (!isFocused.current) {
+    if (!focused) {
       setText(String(value));
     }
-  }, [value]);
+  }, [value, focused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -1072,20 +1179,21 @@ function Stepper({
     const cleaned = raw.replace(",", ".");
     const num = parseFloat(cleaned);
     if (!isNaN(num)) {
-      onSet(num);
+      onSet(Math.max(0, num));
     }
   };
 
   const handleBlur = () => {
-    isFocused.current = false;
+    setFocused(false);
     const cleaned = text.replace(",", ".");
     const num = parseFloat(cleaned);
     if (isNaN(num) || text.trim() === "") {
       onSet(0);
       setText("0");
     } else {
-      onSet(num);
-      setText(String(num));
+      const clamped = Math.max(0, num);
+      onSet(clamped);
+      setText(String(clamped));
     }
   };
 
@@ -1095,25 +1203,32 @@ function Stepper({
         whileHover={{ scale: 1.12 }}
         whileTap={{ scale: 0.82 }}
         transition={APPLE_TAP}
-        disabled={disabled}
+        disabled={disabled || value <= 0}
         onClick={onMinus}
         className="step-btn"
         aria-label="menos"
       >
         −
       </motion.button>
-      <input
-        inputMode={decimals ? "decimal" : "numeric"}
-        disabled={disabled}
-        value={text}
-        onChange={handleChange}
-        onFocus={(e) => {
-          isFocused.current = true;
-          e.target.select();
-        }}
-        onBlur={handleBlur}
-        className="mono w-full min-w-0 bg-transparent text-center text-sm sm:text-base font-bold tabular-nums outline-none text-white px-0.5"
-      />
+      <div className="relative flex flex-1 min-w-0 items-center justify-center">
+        <input
+          inputMode={decimals ? "decimal" : "numeric"}
+          disabled={disabled}
+          value={text}
+          onChange={handleChange}
+          onFocus={(e) => {
+            setFocused(true);
+            e.target.select();
+          }}
+          onBlur={handleBlur}
+          className={`mono w-full min-w-0 bg-transparent text-center text-sm sm:text-base font-bold tabular-nums outline-none text-white px-0.5 ${badge && !focused ? "pb-2" : ""}`}
+        />
+        {badge && !focused && (
+          <span className="pointer-events-none absolute bottom-0.5 inset-x-0 text-center pixel-title text-[5.5px] leading-none text-[var(--cyan)] opacity-90">
+            {badge}
+          </span>
+        )}
+      </div>
       <motion.button
         whileHover={{ scale: 1.12 }}
         whileTap={{ scale: 0.82 }}
@@ -1130,7 +1245,15 @@ function Stepper({
 }
 
 /* ---------------- Floating arcade rest timer (persists offline & background) ---------------- */
-export function RestTimer() {
+export function RestTimer({
+  hasNavbar = true,
+  showQuickReturn = false,
+  onReturnToWorkout,
+}: {
+  hasNavbar?: boolean;
+  showQuickReturn?: boolean;
+  onReturnToWorkout?: () => void;
+} = {}) {
   const endsAt = useGame((s) => s.restEndsAt);
   const stop = useGame((s) => s.stopRest);
   const start = useGame((s) => s.startRest);
@@ -1213,11 +1336,30 @@ export function RestTimer() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={APPLE_BOUNCE}
-          className="panel fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-[min(92vw,26rem)] p-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.8)]"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("button")) return;
+            if (showQuickReturn && onReturnToWorkout) {
+              sfx.whoosh();
+              haptic(8);
+              onReturnToWorkout();
+            }
+          }}
+          className={`panel fixed left-1/2 z-50 w-[min(92vw,26rem)] p-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.85)] transition-[bottom] duration-200 ${
+            hasNavbar
+              ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))]"
+              : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"
+          } ${showQuickReturn ? "cursor-pointer ring-2 ring-[var(--cyan)]/70" : ""}`}
           style={{ x: "-50%" }}
         >
           <div className="flex items-center gap-2">
-            <span className="pixel-title text-[9px] text-[var(--cyan)]">DESCANSO</span>
+            <div className="flex flex-col min-w-0">
+              <span className="pixel-title text-[9px] text-[var(--cyan)]">DESCANSO</span>
+              {showQuickReturn && (
+                <span className="pixel-title text-[6.5px] text-[var(--gold)] animate-pulse leading-tight">
+                  ▶ VOLVER AL ENTRENO
+                </span>
+              )}
+            </div>
             <span ref={ref} className="mono flex-1 text-center text-2xl tabular-nums font-bold text-[var(--gold)]">
               1:30
             </span>

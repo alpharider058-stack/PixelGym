@@ -52,7 +52,13 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
   const sound = useGame((s) => s.sound);
+  const hasActiveWorkout = useGame((s) => !!s.active);
+  const focusMode = useGame((s) => s.focusMode);
+  const setFocusMode = useGame((s) => s.setFocusMode);
   useEffect(() => setSoundEnabled(sound), [sound]);
+
+  const showNav = !hasActiveWorkout || !focusMode;
+  const activeIdx = Math.max(0, TABS.findIndex((x) => x.id === tab));
 
   const go = (t: Tab) => {
     if (t === tab) return;
@@ -66,7 +72,7 @@ export default function App() {
         <>
           <div id="shell" className="mx-auto flex min-h-dvh max-w-lg flex-col will-change-transform">
             <HUD />
-            <main className="relative flex-1 overflow-x-hidden px-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-3">
+            <main className={`relative flex-1 overflow-x-hidden px-3 pt-3 transition-[padding] duration-200 ${showNav ? "pb-[calc(7.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.5rem+env(safe-area-inset-bottom))]"}`}>
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={tab} custom={dir}
@@ -81,45 +87,65 @@ export default function App() {
               </AnimatePresence>
             </main>
           </div>
-          <RestTimer />
-          <motion.nav
-            className="navbar fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            transition={{ ...SPRING, delay: 0.04 }}
-          >
-            <div className="mx-auto grid max-w-lg grid-cols-4">
-              {TABS.map((t, i) => (
-                <motion.button
-                  key={t.id}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ ...SPRING, delay: 0.06 + i * 0.04 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.88, y: 1 }}
-                  onClick={() => go(t.id)}
-                  className={`relative flex flex-col items-center gap-1 py-2.5 sm:py-3 ${tab === t.id ? "text-black" : "text-[#8b93b8]"}`}
-                  aria-label={t.label}
-                >
-                  {tab === t.id && (
-                    <motion.span
-                      layoutId="tab-pill"
-                      className="absolute inset-x-1.5 inset-y-1 bg-[var(--gold)] border-2 border-black shadow-[2px_2px_0_#000]"
-                      transition={SPRING}
-                    />
-                  )}
-                  <motion.span
-                    animate={tab === t.id ? { scale: [1, 1.25, 1], y: [0, -2, 0] } : { scale: 1, y: 0 }}
-                    transition={APPLE_BOUNCE}
-                    className="relative text-lg leading-none"
+          <RestTimer
+            hasNavbar={showNav}
+            showQuickReturn={Boolean(hasActiveWorkout && (!focusMode || tab !== "gym"))}
+            onReturnToWorkout={() => {
+              if (tab !== "gym") {
+                setDir(-1);
+                setTab("gym");
+              }
+              setFocusMode(true);
+            }}
+          />
+          <AnimatePresence>
+            {showNav && (
+              <motion.nav
+                key="bottom-navbar"
+                className="navbar fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]"
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "110%" }}
+                transition={SPRING}
+              >
+                <div className="relative mx-auto grid max-w-lg grid-cols-4">
+                  {/* Rock-solid deterministic sliding yellow highlight box (never flies off-screen) */}
+                  <motion.div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-1 left-0 w-1/4 px-1.5"
+                    initial={false}
+                    animate={{ x: `${activeIdx * 100}%` }}
+                    transition={SPRING}
                   >
-                    {t.icon}
-                  </motion.span>
-                  <span className="pixel-title relative text-[8px] font-bold">{t.label}</span>
-                </motion.button>
-              ))}
-            </div>
-          </motion.nav>
+                    <div className="h-full w-full bg-[var(--gold)] border-2 border-black shadow-[2px_2px_0_#000]" />
+                  </motion.div>
+
+                  {TABS.map((t) => (
+                    <motion.button
+                      key={t.id}
+                      whileTap={{ scale: 0.92 }}
+                      transition={APPLE_TAP}
+                      onClick={() => go(t.id)}
+                      className={`relative z-10 flex flex-col items-center gap-1 py-2.5 sm:py-3 transition-colors ${tab === t.id ? "text-black" : "text-[#8b93b8]"}`}
+                      aria-label={t.label}
+                    >
+                      <motion.span
+                        animate={tab === t.id ? { scale: [1, 1.2, 1], y: [0, -1.5, 0] } : { scale: 1, y: 0 }}
+                        transition={APPLE_BOUNCE}
+                        className="relative text-lg leading-none"
+                      >
+                        {t.icon}
+                        {t.id === "gym" && hasActiveWorkout && (
+                          <span className="absolute -right-2.5 -top-0.5 h-2 w-2 rounded-full bg-[#7dff6a] border border-black animate-pulse" />
+                        )}
+                      </motion.span>
+                      <span className="pixel-title relative text-[8px] font-bold">{t.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.nav>
+            )}
+          </AnimatePresence>
         </>
       )}
       <FxLayer />

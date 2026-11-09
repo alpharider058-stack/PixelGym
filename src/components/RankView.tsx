@@ -88,11 +88,12 @@ export default function RankView() {
 
   const league = leagueOf(weekly);
   const nextL = LEAGUES[LEAGUES.indexOf(league) + 1];
-  const unit = SORTS.find((s) => s.id === sort)!.unit;
+  const sortIdx = Math.max(0, SORTS.findIndex((s) => s.id === sort));
+  const unit = SORTS[sortIdx].unit;
   const timeLeft = getTimeUntilWeeklyReset();
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-5">
       {/* HEADER DE TEMPORADA Y CUENTA ATRÁS */}
       <Panel className="p-4 space-y-3">
         <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
@@ -118,26 +119,29 @@ export default function RankView() {
         </div>
       </Panel>
 
-      <div className="grid grid-cols-4 gap-1">
-        {SORTS.map((s) => (
-          <motion.button
-            key={s.id}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.94 }}
-            transition={APPLE_TAP}
-            onClick={() => { setSort(s.id); sfx.tick(); }}
-            className={`relative py-2.5 pixel-title text-[7.5px] font-bold ${sort === s.id ? "text-black" : "text-[#8b93b8]"}`}
+      <div className="border-2 border-[#2c3350] bg-[#10131f] p-1 shadow-[2px_2px_0_#000]">
+        <div className="relative grid grid-cols-4">
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/4"
+            initial={false}
+            animate={{ x: `${sortIdx * 100}%` }}
+            transition={APPLE_SPRING}
           >
-            {sort === s.id && (
-              <motion.span
-                layoutId="sort-pill"
-                className="absolute inset-0 bg-[var(--cyan)] border-2 border-black shadow-[2px_2px_0_#000]"
-                transition={APPLE_SPRING}
-              />
-            )}
-            <span className="relative">{s.label}</span>
-          </motion.button>
-        ))}
+            <div className="h-full w-full bg-[var(--cyan)] border-2 border-black shadow-[2px_2px_0_#000]" />
+          </motion.div>
+          {SORTS.map((s) => (
+            <motion.button
+              key={s.id}
+              whileTap={{ scale: 0.94 }}
+              transition={APPLE_TAP}
+              onClick={() => { setSort(s.id); sfx.tick(); }}
+              className={`relative z-10 py-2.5 pixel-title text-[7.5px] font-bold transition-colors ${sort === s.id ? "text-black" : "text-[#8b93b8]"}`}
+            >
+              <span className="relative">{s.label}</span>
+            </motion.button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-2">
