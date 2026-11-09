@@ -8,6 +8,7 @@ import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLev
 import { ACHIEVEMENT_MAP } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
+import { cancelRemoteRestPush, scheduleRemoteRestPush } from "@/lib/push-client";
 import { getSetOverloadAdvice } from "@/lib/overload";
 import Avatar from "./Avatar";
 import { PixelButton, Panel, Bar, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
@@ -1053,7 +1054,7 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
     if (res.exp < 0) { sfx.error(); return; }
     sfx.set(); haptic(res.pr ? [15, 30, 15, 30, 40] : 12);
     const restSeconds = exId ? (restTimeByEx[exId] ?? defaultRestForExercise(EX[exId])) : 90;
-    startRest(restSeconds);
+    startRest(restSeconds, ex?.name);
     fxAt(el, (x, y) => {
       const effects: any[] = [
         { kind: "burst", x, y, color: res.pr ? "#ff3f6c" : "#7dff6a", count: res.pr ? 40 : 16, big: res.pr },
@@ -1266,16 +1267,27 @@ export function RestTimer({
   onReturnToWorkout?: () => void;
 } = {}) {
   const endsAt = useGame((s) => s.restEndsAt);
+  const restExName = useGame((s) => s.restExName);
+  const restPushOn = useGame((s) => s.pushPrefs?.restPush ?? true);
   const stop = useGame((s) => s.stopRest);
   const start = useGame((s) => s.startRest);
   const ref = useRef<HTMLSpanElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const prevEndsAtRef = useRef<number | null>(null);
+  const remoteScheduledRef = useRef<boolean>(false);
 
   useEffect(() => {
+    const prev = prevEndsAtRef.current;
+    prevEndsAtRef.current = endsAt;
+
     if (!endsAt) {
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: "CANCEL_REST_TIMER" });
       }
+      if (remoteScheduledRef.current && prev && Date.now() - prev < 4000) {
+        cancelRemoteRestPush();
+      }
+      remoteScheduledRef.current = false;
       return;
     }
 
@@ -1284,12 +1296,43 @@ export function RestTimer({
       Notification.requestPermission().catch(() => {});
     }
 
-    // Forward timer to Service Worker for background system notification when screen is off
-    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: "START_REST_TIMER",
-        endsAt,
-      });
+    let effectAlive = true;
+
+    const postSwTimer = (notifyAt: number) => {
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "START_REST_TIMER",
+          endsAt,
+          notifyAt,
+        });
+      }
+    };
+
+    // Schedule durable server Web Push fallback (works even if phone locks / app closes);
+    // delay local SW notification slightly when remote push is armed to avoid double buzz.
+    if (restPushOn && endsAt > Date.now() + 1000) {
+      if (endsAt !== prev) {
+        remoteScheduledRef.current = false;
+        postSwTimer(endsAt + 12000);
+        scheduleRemoteRestPush(endsAt, restExName || undefined).then((scheduled) => {
+          if (!effectAlive) {
+            if (scheduled && !useGame.getState().restEndsAt) {
+              cancelRemoteRestPush();
+            }
+            return;
+          }
+          remoteScheduledRef.current = scheduled;
+          if (!scheduled) {
+            postSwTimer(endsAt);
+          }
+        });
+      }
+    } else {
+      if (remoteScheduledRef.current) {
+        cancelRemoteRestPush();
+        remoteScheduledRef.current = false;
+      }
+      postSwTimer(endsAt);
     }
 
     const total = Math.max(1, endsAt - Date.now());
@@ -1333,11 +1376,12 @@ export function RestTimer({
 
     raf = requestAnimationFrame(loop);
     return () => {
+      effectAlive = false;
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", checkResume);
       window.removeEventListener("focus", checkResume);
     };
-  }, [endsAt, stop]);
+  }, [endsAt, restExName, restPushOn, stop]);
 
   return (
     <AnimatePresence>
@@ -1380,7 +1424,7 @@ export function RestTimer({
               transition={APPLE_TAP}
               className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-3 py-1.5 min-h-[34px] text-[9px] text-white active:border-[var(--gold)]"
               onClick={() => {
-                start(Math.max(0, (endsAt - Date.now()) / 1000) + 30);
+                start(Math.max(0, (endsAt - Date.now()) / 1000) + 30, restExName || undefined);
                 sfx.tick();
               }}
             >

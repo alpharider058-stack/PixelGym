@@ -5,6 +5,7 @@ import {
   DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, isBodyweight, leagueOf, levelOf, weekOfUtc,
 } from "./data";
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from "./achievements";
+import { DEFAULT_PUSH_PREFS, PushPrefs } from "./push-types";
 
 export interface SetEntry { id: string; kg: number; reps: number; done: boolean; pr?: boolean; rir?: number }
 export interface ExEntry { exId: string; sets: SetEntry[] }
@@ -59,6 +60,7 @@ interface State {
   history: WorkoutLog[];
   active: ActiveWorkout | null;
   restEndsAt: number | null;
+  restExName: string | null;
   owned: string[];
   equipped: Equipped;
   customRoutines: Routine[];
@@ -66,6 +68,7 @@ interface State {
   trophies: Trophy[];
   sound: boolean;
   focusMode: boolean;
+  pushPrefs: PushPrefs;
   maxStreak: number;
   totalPrs: number;
   bossKills: number;
@@ -77,6 +80,7 @@ interface State {
   setBodyweight: (bw: number) => void;
   toggleSound: () => void;
   setFocusMode: (v: boolean) => void;
+  setPushPrefs: (patch: Partial<PushPrefs>) => void;
   clearWorkoutSummary: () => void;
   claimAchievement: (id: string) => number;
   setActiveTitle: (title: string | null) => void;
@@ -95,7 +99,7 @@ interface State {
   completeSet: (i: number, s: number) => SetResult | null;
   finishWorkout: () => WorkoutLog | null;
   deleteLog: (id: string) => void;
-  startRest: (sec: number) => void;
+  startRest: (sec: number, exName?: string) => void;
   stopRest: () => void;
   buy: (id: string) => boolean;
   equip: (id: string) => void;
@@ -119,7 +123,7 @@ export const useGame = create<State>()(
       bossDmgDealt: 0,
       bossDefeated: false,
       restTimeByEx: {},
-      best: {}, lastSet: {}, history: [], active: null, restEndsAt: null,
+      best: {}, lastSet: {}, history: [], active: null, restEndsAt: null, restExName: null,
       owned: Object.values(DEFAULT_EQUIP).concat(["shirt_none", "belt_none", "wrist_none", "aura_none"]),
       equipped: { ...DEFAULT_EQUIP },
       customRoutines: [],
@@ -127,6 +131,7 @@ export const useGame = create<State>()(
       trophies: [],
       sound: true,
       focusMode: true,
+      pushPrefs: { ...DEFAULT_PUSH_PREFS },
       maxStreak: 0,
       totalPrs: 0,
       bossKills: 0,
@@ -138,6 +143,7 @@ export const useGame = create<State>()(
       setBodyweight: (bw) => set({ bodyweight: Math.max(30, Math.min(250, Math.round(bw * 10) / 10)) }),
       toggleSound: () => set((s) => ({ sound: !s.sound })),
       setFocusMode: (v) => set({ focusMode: v }),
+      setPushPrefs: (patch) => set((s) => ({ pushPrefs: { ...(s.pushPrefs || DEFAULT_PUSH_PREFS), ...patch } })),
       clearWorkoutSummary: () => set({ lastWorkoutSummary: null }),
       claimAchievement: (id) => {
         const s = get();
@@ -235,7 +241,7 @@ export const useGame = create<State>()(
           },
         });
       },
-      cancelWorkout: () => set({ active: null, restEndsAt: null }),
+      cancelWorkout: () => set({ active: null, restEndsAt: null, restExName: null }),
       addExercise: (exId) => set((s) => s.active ? ({
         active: { ...s.active, exercises: [...s.active.exercises, { exId, sets: [mkSet(s, exId)] }] },
       }) : {}),
@@ -415,7 +421,7 @@ export const useGame = create<State>()(
         const done = s.active.exercises
           .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
           .filter((e) => e.sets.length);
-        if (!done.length) { set({ active: null, restEndsAt: null }); return null; }
+        if (!done.length) { set({ active: null, restEndsAt: null, restExName: null }); return null; }
         const now = Date.now();
         const bw = s.bodyweight || 75;
         let tonnage = 0;
@@ -506,7 +512,7 @@ export const useGame = create<State>()(
 
         set({
           history: nextHistory,
-          active: null, restEndsAt: null, streak, maxStreak: nextMaxStreak, lastDay: today,
+          active: null, restEndsAt: null, restExName: null, streak, maxStreak: nextMaxStreak, lastDay: today,
           exp: s.exp + bonus, weeklyExp: s.weeklyExp + bonus, gold: s.gold + bonusGold,
           quests: updatedQuests,
           lastWorkoutSummary: summary,
@@ -604,8 +610,11 @@ export const useGame = create<State>()(
         };
       }),
 
-      startRest: (sec) => set({ restEndsAt: Date.now() + sec * 1000 }),
-      stopRest: () => set({ restEndsAt: null }),
+      startRest: (sec, exName) => set((s) => ({
+        restEndsAt: Date.now() + sec * 1000,
+        restExName: exName ?? s.restExName ?? null,
+      })),
+      stopRest: () => set({ restEndsAt: null, restExName: null }),
       buy: (id) => {
         const s = get(); const it = ITEM[id];
         if (!it || s.owned.includes(id) || s.gold < it.price || levelOf(s.exp) < it.minLevel) return false;
@@ -677,6 +686,7 @@ export const useGame = create<State>()(
         if (!state) return;
         state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
         state.owned = Array.from(new Set([...(state.owned || []), ...Object.values(DEFAULT_EQUIP)]));
+        state.pushPrefs = { ...DEFAULT_PUSH_PREFS, ...(state.pushPrefs || {}) };
         state.claimedAchievements = state.claimedAchievements || [];
         state.maxStreak = Math.max(state.maxStreak || 0, state.streak || 0);
         state.totalPrs = state.totalPrs || 0;

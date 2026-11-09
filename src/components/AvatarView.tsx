@@ -11,6 +11,7 @@ import Avatar from "./Avatar";
 import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
 import { Sheet } from "./GymView";
 import MuscleHeatmap from "./MuscleHeatmap";
+import PushPanel from "./PushPanel";
 
 const SLOTS: { id: Slot; label: string }[] = [
   { id: "shirt", label: "ROPA" },
@@ -122,6 +123,9 @@ export default function AvatarView() {
         </div>
         <div className="mono w-full text-center text-sm text-[#8b93b8]">TONELAJE TOTAL: <b className="text-white tabular-nums">{Math.round(st.tonnage).toLocaleString("es")} kg</b></div>
       </Panel>
+
+      {/* NOTIFICACIONES PUSH REMOTAS (VAPID) */}
+      <PushPanel />
 
       {/* VITRINA DE TROFEOS SEMANALES */}
       <TrophyCabinet trophies={trophies} />

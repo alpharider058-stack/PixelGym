@@ -1,5 +1,5 @@
-/* PixelGym RPG service worker: 100% offline-first app shell + background rest timer notifications */
-const VERSION = "pixelgym-v6";
+/* PixelGym RPG service worker: 100% offline-first app shell + background rest timer & remote Web Push */
+const VERSION = "pixelgym-v7";
 const SHELL = [
   "/",
   "/manifest.json",
@@ -27,13 +27,14 @@ self.addEventListener("activate", (e) => {
   );
 });
 
-// Offline-first fetch strategy
+// Offline-first fetch strategy (skip API & Workflow routes)
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== location.origin) return;
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/.well-known/")) return;
 
   // Navigations (loading the app / offline gym support):
-  // Try network with quick timeout, if offline immediately serve cached shell "/"
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req)
@@ -62,14 +63,15 @@ self.addEventListener("fetch", (e) => {
   );
 });
 
-// Background rest timer handler for when phone screen turns off or app is minimized
+// Local background rest timer handler (offline / foreground fallback)
 self.addEventListener("message", (e) => {
   const data = e.data;
   if (!data) return;
 
   if (data.type === "START_REST_TIMER") {
     if (restTimerId) clearTimeout(restTimerId);
-    const delay = Math.max(0, data.endsAt - Date.now());
+    const notifyAt = typeof data.notifyAt === "number" ? data.notifyAt : data.endsAt;
+    const delay = Math.max(0, notifyAt - Date.now());
 
     restTimerId = setTimeout(() => {
       if (self.registration && self.registration.showNotification) {
@@ -80,6 +82,7 @@ self.addEventListener("message", (e) => {
           vibrate: [250, 100, 250],
           tag: "pixelgym-rest-timer",
           renotify: true,
+          data: { url: "/", kind: "rest-local" },
         });
       }
       restTimerId = null;
@@ -92,14 +95,53 @@ self.addEventListener("message", (e) => {
   }
 });
 
+// Remote VAPID Web Push delivery (works even when PWA is completely closed)
+self.addEventListener("push", (e) => {
+  let payload = {};
+  try {
+    payload = e.data ? e.data.json() : {};
+  } catch {
+    payload = { body: e.data ? e.data.text() : "¡Nueva notificación de PixelGym RPG!" };
+  }
+
+  const title = payload.title || "PixelGym RPG";
+  const options = {
+    body: payload.body || "¡Es hora de entrenar! 💪",
+    icon: payload.icon || "/icon-192.png",
+    badge: payload.badge || "/icon-64.png",
+    tag: payload.tag || "pixelgym-push",
+    renotify: payload.renotify !== undefined ? Boolean(payload.renotify) : true,
+    vibrate: Array.isArray(payload.vibrate) ? payload.vibrate : [200, 100, 200],
+    data: {
+      url: payload.url || "/",
+      kind: payload.kind || "push",
+    },
+  };
+
+  if (options.tag === "pixelgym-rest-timer" && restTimerId) {
+    clearTimeout(restTimerId);
+    restTimerId = null;
+  }
+
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  const targetUrl = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          return client.focus().then((focused) => {
+            if (focused && "navigate" in focused && targetUrl && targetUrl !== "/") {
+              return focused.navigate(targetUrl).catch(() => focused);
+            }
+            return focused;
+          });
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
   );
 });

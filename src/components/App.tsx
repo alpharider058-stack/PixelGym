@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
+import { syncRemotePushState } from "@/lib/push-client";
 import { setSoundEnabled, sfx, haptic } from "@/lib/fx";
 import { useStats } from "@/lib/hooks";
 import GymView, { RestTimer } from "./GymView";
@@ -26,6 +27,7 @@ export default function App() {
   const [dir, setDir] = useState(1);
   const [morphed, setMorphed] = useState(false);
   const [intro, setIntro] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
 
   const handleMorph = useCallback(() => {
     setMorphed(true);
@@ -39,6 +41,7 @@ export default function App() {
     document.documentElement.removeAttribute("data-theme");
     Promise.resolve(useGame.persist.rehydrate()).then(() => {
       useGame.getState().checkWeeklyReset();
+      setHydrated(true);
     });
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -52,11 +55,30 @@ export default function App() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
-  const sound = useGame((s) => s.sound);
-  const hasActiveWorkout = useGame((s) => !!s.active);
-  const focusMode = useGame((s) => s.focusMode);
-  const setFocusMode = useGame((s) => s.setFocusMode);
+  const { sound, hasActiveWorkout, focusMode, setFocusMode, heroName, streak, lastDay, weeklyExp, pushPrefs } = useGame(
+    useShallow((s) => ({
+      sound: s.sound,
+      hasActiveWorkout: !!s.active,
+      focusMode: s.focusMode,
+      setFocusMode: s.setFocusMode,
+      heroName: s.name,
+      streak: s.streak,
+      lastDay: s.lastDay,
+      weeklyExp: s.weeklyExp,
+      pushPrefs: s.pushPrefs,
+    }))
+  );
   useEffect(() => setSoundEnabled(sound), [sound]);
+  useEffect(() => {
+    if (!hydrated) return;
+    syncRemotePushState({
+      prefs: pushPrefs,
+      heroName,
+      streak,
+      lastDay,
+      weeklyExp,
+    });
+  }, [hydrated, heroName, streak, lastDay, weeklyExp, pushPrefs]);
 
   const showNav = !hasActiveWorkout || !focusMode;
   const activeIdx = Math.max(0, TABS.findIndex((x) => x.id === tab));
