@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       if (!sub.prefs.weeklyLeague) continue;
       if (sub.lastLeagueWarnWeek === currentWeek) continue;
 
-      const sameWeek = sub.lastDay ? weekOfUtc(Date.parse(sub.lastDay)) === currentWeek : false;
+      const sameWeek = sub.lastDay ? weekOfUtc(Date.parse(`${sub.lastDay}T12:00:00Z`)) === currentWeek : false;
       const exp = sameWeek ? Math.max(0, sub.weeklyExp || 0) : 0;
       const lg = leagueOf(exp);
 

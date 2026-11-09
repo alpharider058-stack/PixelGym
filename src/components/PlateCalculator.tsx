@@ -103,6 +103,7 @@ export default function PlateCalculator({ initialKg, onClose }: Props) {
                 transition={APPLE_TAP}
                 onClick={() => {
                   setBarKg(b);
+                  setTargetKg((prev) => Math.max(b, prev));
                   sfx.tap();
                 }}
                 className={`pixel-title border px-3 py-1.5 text-[8px] font-bold cursor-pointer transition-colors ${

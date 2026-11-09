@@ -94,12 +94,12 @@ export default function FxLayer() {
 
   return (
     <>
-      <canvas ref={ref} className="pointer-events-none fixed inset-0 z-[60] h-full w-full" />
+      <canvas ref={ref} className="pointer-events-none fixed inset-0 z-[95] h-full w-full" />
       <AnimatePresence>
         {banner && (
           <motion.div
             key={banner.id}
-            className="fixed inset-0 z-[55] flex flex-col items-center justify-center gap-4 bg-black/70"
+            className="fixed inset-0 z-[94] flex flex-col items-center justify-center gap-4 bg-black/70"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onPointerDown={() => setBanner(null)}
           >

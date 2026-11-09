@@ -1,5 +1,5 @@
 /* PixelGym RPG service worker: 100% offline-first app shell + background rest timer & remote Web Push */
-const VERSION = "pixelgym-v7";
+const VERSION = "pixelgym-v8";
 const SHELL = [
   "/",
   "/manifest.json",
@@ -72,11 +72,14 @@ self.addEventListener("message", (e) => {
     if (restTimerId) clearTimeout(restTimerId);
     const notifyAt = typeof data.notifyAt === "number" ? data.notifyAt : data.endsAt;
     const delay = Math.max(0, notifyAt - Date.now());
+    const exName = typeof data.exerciseName === "string" ? data.exerciseName.trim() : "";
 
     restTimerId = setTimeout(() => {
       if (self.registration && self.registration.showNotification) {
         self.registration.showNotification("PixelGym RPG", {
-          body: "¡Descanso finalizado! A por la siguiente serie 💪",
+          body: exName
+            ? `¡Descanso terminado en ${exName}! A por la siguiente serie 💪`
+            : "¡Descanso finalizado! A por la siguiente serie 💪",
           icon: "/icon-192.png",
           badge: "/icon-64.png",
           vibrate: [250, 100, 250],

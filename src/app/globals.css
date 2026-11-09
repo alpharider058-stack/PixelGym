@@ -28,7 +28,9 @@ body {
     linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
   background-size: 8px 8px;
 }
-input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px = no iOS zoom on focus */
+@layer base {
+  input, textarea, select { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px = no iOS zoom on focus */
+}
 
 .pixel-title { font-family: var(--font-pixel), monospace; letter-spacing: .02em; line-height: 1.5; }
 .mono { font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
@@ -85,7 +87,7 @@ input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px
 
   .pinput {
     background: #10131f; border: 3px solid #4a5280; padding: .5rem .75rem;
-    font-family: var(--font-pixel), monospace; font-size: 12px; color: #fff; outline: none;
+    font-family: var(--font-mono), monospace; font-size: 17px; color: #fff; outline: none;
   }
 
   .pbar { position: relative; width: 100%; background: #0a0c14; border: 2px solid #000; box-shadow: 0 0 0 2px #2c3350; overflow: hidden; }

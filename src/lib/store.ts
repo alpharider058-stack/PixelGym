@@ -2,18 +2,28 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, isBodyweight, leagueOf, levelOf, weekOfUtc,
+  DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, getWeeklyRankForExp, isBodyweight, leagueOf, levelOf, localDayKey, weekOfUtc,
 } from "./data";
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from "./achievements";
 import { DEFAULT_PUSH_PREFS, PushPrefs } from "./push-types";
 
-export interface SetEntry { id: string; kg: number; reps: number; done: boolean; pr?: boolean; rir?: number }
-export interface ExEntry { exId: string; sets: SetEntry[] }
+export interface SetAwarded {
+  exp: number;
+  gold: number;
+  vol: number;
+  bossDmg: number;
+  muscle: Muscle;
+  pr: boolean;
+  weekKey: string;
+  questAdds?: { id: string; delta: number }[];
+}
+export interface SetEntry { id: string; kg: number; reps: number; done: boolean; pr?: boolean; rir?: number; awarded?: SetAwarded }
+export interface ExEntry { id?: string; exId: string; sets: SetEntry[] }
 export interface ActiveWorkout { routineId: string; name: string; startedAt: number; exercises: ExEntry[] }
 export interface WorkoutLog {
   id: string; name: string; startedAt: number; endedAt: number;
   exercises: ExEntry[]; tonnage: number; exp: number; prs: number;
-  bossDamage?: number; totalGold?: number;
+  bossDamage?: number; totalGold?: number; weekKey?: string;
 }
 export interface WorkoutSummary {
   id: string;
@@ -36,8 +46,143 @@ export interface WorkoutSummary {
 export interface SetResult { exp: number; gold: number; pr: boolean; levelUp: number | null; strGain: number }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const dayKey = (t: number) => new Date(t).toISOString().slice(0, 10);
-const zeroVol = (): Record<Muscle, number> => ({ chest: 0, back: 0, shoulders: 0, arms: 0, legs: 0 });
+const zeroVol = (): Record<Muscle, number> => ({ chest: 0, back: 0, shoulders: 0, arms: 0, legs: 0, core: 0 });
+
+function recomputeBestAndLast(
+  exIds: Iterable<string>,
+  history: WorkoutLog[],
+  active: ActiveWorkout | null,
+  bodyweight: number,
+  currentBest: Record<string, { e1rm: number; vol: number }>,
+  currentLastSet: Record<string, { kg: number; reps: number }>,
+  skipSetCoords?: { exIdx: number; setIdx: number }
+) {
+  const newBest = { ...currentBest };
+  const newLastSet = { ...currentLastSet };
+  const bw = bodyweight || 75;
+
+  for (const exId of exIds) {
+    let maxE1rm = 0;
+    let maxVol = 0;
+    let latestDone: { kg: number; reps: number } | null = null;
+
+    if (active) {
+      for (let k = active.exercises.length - 1; k >= 0; k--) {
+        const actE = active.exercises[k];
+        if (actE.exId !== exId) continue;
+        const eBw = isBodyweight(EX[actE.exId]);
+        for (let j = actE.sets.length - 1; j >= 0; j--) {
+          if (skipSetCoords && skipSetCoords.exIdx === k && skipSetCoords.setIdx === j) continue;
+          const x = actE.sets[j];
+          if (!x.done || x.reps <= 0) continue;
+          if (!latestDone) latestDone = { kg: x.kg, reps: x.reps };
+          const l = eBw ? bw + x.kg : x.kg;
+          const eVal = e1rm(l, x.reps);
+          const vVal = l * x.reps;
+          if (eVal > maxE1rm) maxE1rm = eVal;
+          if (vVal > maxVol) maxVol = vVal;
+        }
+      }
+    }
+
+    for (const h of history) {
+      for (const e of h.exercises) {
+        if (e.exId !== exId) continue;
+        const eBw = isBodyweight(EX[e.exId]);
+        for (let j = e.sets.length - 1; j >= 0; j--) {
+          const x = e.sets[j];
+          if (x.reps <= 0) continue;
+          if (!latestDone) latestDone = { kg: x.kg, reps: x.reps };
+          const l = eBw ? bw + x.kg : x.kg;
+          const eVal = e1rm(l, x.reps);
+          const vVal = l * x.reps;
+          if (eVal > maxE1rm) maxE1rm = eVal;
+          if (vVal > maxVol) maxVol = vVal;
+        }
+      }
+    }
+
+    if (maxE1rm > 0) {
+      newBest[exId] = { e1rm: maxE1rm, vol: maxVol };
+    } else {
+      delete newBest[exId];
+    }
+
+    if (latestDone) {
+      newLastSet[exId] = latestDone;
+    } else {
+      delete newLastSet[exId];
+    }
+  }
+
+  return { best: newBest, lastSet: newLastSet };
+}
+
+function rollbackDoneSets(s: State, targetExercises: ExEntry[], nextActive: ActiveWorkout | null) {
+  let expSub = 0;
+  let weeklyExpSub = 0;
+  let goldSub = 0;
+  let volSub = 0;
+  let prsSub = 0;
+  let bossSub = 0;
+  const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
+  const questSubs: Record<string, number> = {};
+  const touchedExIds = new Set<string>();
+  const bw = s.bodyweight || 75;
+
+  for (const e of targetExercises) {
+    touchedExIds.add(e.exId);
+    const ex = EX[e.exId];
+    const isBw = isBodyweight(ex);
+    for (const st of e.sets) {
+      if (!st.done) continue;
+      const a = st.awarded;
+      const lifted = isBw ? bw + st.kg : st.kg;
+      const fallbackVol = lifted * st.reps;
+      const sVol = a?.vol ?? fallbackVol;
+      const wasPr = a?.pr ?? Boolean(st.pr);
+      const sExp = a?.exp ?? (Math.round(10 + fallbackVol / 25) + (wasPr ? 100 : 0));
+      const sGold = a?.gold ?? (3 + Math.floor(st.reps / 4) + (wasPr ? 25 : 0));
+      const sBoss = a?.bossDmg ?? 0;
+      const mKey = a?.muscle ?? ex?.muscle;
+      const sameWeek = !a || a.weekKey === s.weekKey;
+
+      expSub += sExp;
+      if (sameWeek) weeklyExpSub += sExp;
+      goldSub += sGold;
+      volSub += sVol;
+      if (wasPr) prsSub += 1;
+      if (sameWeek) bossSub += sBoss;
+      if (mKey) mv[mKey] = Math.max(0, (mv[mKey] ?? 0) - sVol);
+      if (sameWeek && a?.questAdds) {
+        for (const qa of a.questAdds) {
+          questSubs[qa.id] = (questSubs[qa.id] ?? 0) + qa.delta;
+        }
+      }
+    }
+  }
+
+  const nextQuests = (s.quests || generateDefaultQuests()).map((q) => {
+    const sub = questSubs[q.id];
+    if (!sub || q.claimed) return q;
+    return { ...q, current: Math.max(0, q.current - sub) };
+  });
+
+  const { best, lastSet } = recomputeBestAndLast(touchedExIds, s.history, nextActive, bw, s.best, s.lastSet);
+
+  return {
+    exp: Math.max(0, s.exp - expSub),
+    weeklyExp: Math.max(0, s.weeklyExp - weeklyExpSub),
+    gold: Math.max(0, s.gold - goldSub),
+    tonnage: Math.max(0, s.tonnage - volSub),
+    totalPrs: Math.max(0, (s.totalPrs || 0) - prsSub),
+    bossDmgDealt: Math.max(0, (s.bossDmgDealt || 0) - bossSub),
+    muscleVol: mv,
+    quests: nextQuests,
+    best,
+    lastSet,
+  };
+}
 
 interface State {
   name: string;
@@ -106,7 +251,7 @@ interface State {
   saveRoutine: (r: Routine) => void;
   deleteRoutine: (id: string) => void;
   restoreDefaultRoutines: () => void;
-  settleWeeklyTrophy: (forcedRank?: number) => Trophy;
+  settleWeeklyTrophy: (forcedRank?: number) => Trophy | null;
   checkWeeklyReset: () => Trophy | null;
 }
 
@@ -203,27 +348,50 @@ export const useGame = create<State>()(
         try {
           if (!data || typeof data !== "object") return false;
           const d = data as Partial<State>;
+          const cur = get();
+          const hist = Array.isArray(d.history) ? d.history : cur.history;
+          const inferredLastDay =
+            typeof d.lastDay === "string" || d.lastDay === null
+              ? d.lastDay
+              : hist.length > 0
+              ? localDayKey(hist[0].endedAt || hist[0].startedAt)
+              : cur.lastDay;
+
           set({
-            name: typeof d.name === "string" ? d.name : get().name,
-            bodyweight: typeof d.bodyweight === "number" ? d.bodyweight : get().bodyweight,
-            exp: typeof d.exp === "number" ? d.exp : get().exp,
-            gold: typeof d.gold === "number" ? d.gold : get().gold,
-            tonnage: typeof d.tonnage === "number" ? d.tonnage : get().tonnage,
-            weeklyExp: typeof d.weeklyExp === "number" ? d.weeklyExp : get().weeklyExp,
-            streak: typeof d.streak === "number" ? d.streak : get().streak,
-            muscleVol: d.muscleVol ?? get().muscleVol,
-            best: d.best ?? get().best,
-            history: Array.isArray(d.history) ? d.history : get().history,
-            trophies: Array.isArray(d.trophies) ? d.trophies : get().trophies,
-            customRoutines: Array.isArray(d.customRoutines) ? d.customRoutines : get().customRoutines,
-            deletedRoutineIds: Array.isArray(d.deletedRoutineIds) ? d.deletedRoutineIds : get().deletedRoutineIds,
-            owned: Array.isArray(d.owned) ? Array.from(new Set([...d.owned, ...Object.values(DEFAULT_EQUIP)])) : get().owned,
-            equipped: d.equipped ? { ...DEFAULT_EQUIP, ...d.equipped } : get().equipped,
-            claimedAchievements: Array.isArray(d.claimedAchievements) ? d.claimedAchievements : get().claimedAchievements,
-            activeTitle: typeof d.activeTitle === "string" || d.activeTitle === null ? d.activeTitle : get().activeTitle,
-            maxStreak: typeof d.maxStreak === "number" ? d.maxStreak : get().maxStreak,
-            totalPrs: typeof d.totalPrs === "number" ? d.totalPrs : get().totalPrs,
-            bossKills: typeof d.bossKills === "number" ? d.bossKills : get().bossKills,
+            name: typeof d.name === "string" ? d.name : cur.name,
+            bodyweight: typeof d.bodyweight === "number" ? d.bodyweight : cur.bodyweight,
+            exp: typeof d.exp === "number" ? d.exp : cur.exp,
+            gold: typeof d.gold === "number" ? d.gold : cur.gold,
+            tonnage: typeof d.tonnage === "number" ? d.tonnage : cur.tonnage,
+            weeklyExp: typeof d.weeklyExp === "number" ? d.weeklyExp : cur.weeklyExp,
+            weekKey: typeof d.weekKey === "string" ? d.weekKey : cur.weekKey,
+            streak: typeof d.streak === "number" ? d.streak : cur.streak,
+            lastDay: inferredLastDay,
+            muscleVol: d.muscleVol ? { ...zeroVol(), ...d.muscleVol } : cur.muscleVol,
+            best: d.best ?? cur.best,
+            lastSet: d.lastSet ?? cur.lastSet,
+            restTimeByEx: d.restTimeByEx ?? cur.restTimeByEx,
+            quests: Array.isArray(d.quests) ? d.quests : cur.quests,
+            bossDmgDealt: typeof d.bossDmgDealt === "number" ? d.bossDmgDealt : cur.bossDmgDealt,
+            bossDefeated: typeof d.bossDefeated === "boolean" ? d.bossDefeated : cur.bossDefeated,
+            history: hist,
+            trophies: Array.isArray(d.trophies) ? d.trophies : cur.trophies,
+            customRoutines: Array.isArray(d.customRoutines) ? d.customRoutines : cur.customRoutines,
+            deletedRoutineIds: Array.isArray(d.deletedRoutineIds) ? d.deletedRoutineIds : cur.deletedRoutineIds,
+            owned: Array.isArray(d.owned) ? Array.from(new Set([...d.owned, ...Object.values(DEFAULT_EQUIP)])) : cur.owned,
+            equipped: d.equipped ? { ...DEFAULT_EQUIP, ...d.equipped } : cur.equipped,
+            claimedAchievements: Array.isArray(d.claimedAchievements) ? d.claimedAchievements : cur.claimedAchievements,
+            activeTitle: typeof d.activeTitle === "string" || d.activeTitle === null ? d.activeTitle : cur.activeTitle,
+            maxStreak: typeof d.maxStreak === "number" ? d.maxStreak : cur.maxStreak,
+            totalPrs: typeof d.totalPrs === "number" ? d.totalPrs : cur.totalPrs,
+            bossKills: typeof d.bossKills === "number" ? d.bossKills : cur.bossKills,
+            sound: typeof d.sound === "boolean" ? d.sound : cur.sound,
+            focusMode: typeof d.focusMode === "boolean" ? d.focusMode : cur.focusMode,
+            pushPrefs: d.pushPrefs ? { ...DEFAULT_PUSH_PREFS, ...d.pushPrefs } : cur.pushPrefs,
+            active: null,
+            restEndsAt: null,
+            restExName: null,
+            lastWorkoutSummary: null,
           });
           return true;
         } catch {
@@ -237,17 +405,42 @@ export const useGame = create<State>()(
           focusMode: true,
           active: {
             routineId: r.id, name: r.name, startedAt: Date.now(),
-            exercises: r.exercises.map((exId) => ({ exId, sets: [mkSet(st, exId)] })),
+            exercises: r.exercises.map((exId) => ({ id: uid(), exId, sets: [mkSet(st, exId)] })),
           },
         });
       },
-      cancelWorkout: () => set({ active: null, restEndsAt: null, restExName: null }),
+      cancelWorkout: () => {
+        const s = get();
+        if (!s.active) {
+          set({ active: null, restEndsAt: null, restExName: null });
+          return;
+        }
+        const rollback = rollbackDoneSets(s, s.active.exercises, null);
+        set({
+          ...rollback,
+          active: null,
+          restEndsAt: null,
+          restExName: null,
+        });
+      },
       addExercise: (exId) => set((s) => s.active ? ({
-        active: { ...s.active, exercises: [...s.active.exercises, { exId, sets: [mkSet(s, exId)] }] },
+        active: { ...s.active, exercises: [...s.active.exercises, { id: uid(), exId, sets: [mkSet(s, exId)] }] },
       }) : {}),
-      removeExercise: (i) => set((s) => s.active ? ({
-        active: { ...s.active, exercises: s.active.exercises.filter((_, k) => k !== i) },
-      }) : {}),
+      removeExercise: (i) => {
+        const s = get();
+        if (!s.active) return;
+        const removed = s.active.exercises[i];
+        if (!removed) return;
+        const nextActive: ActiveWorkout = {
+          ...s.active,
+          exercises: s.active.exercises.filter((_, k) => k !== i),
+        };
+        const rollback = rollbackDoneSets(s, [removed], nextActive);
+        set({
+          ...rollback,
+          active: nextActive,
+        });
+      },
       addSet: (i) => set((s) => {
         if (!s.active) return {};
         const exs = s.active.exercises.map((e, k) => {
@@ -258,9 +451,19 @@ export const useGame = create<State>()(
         });
         return { active: { ...s.active, exercises: exs } };
       }),
-      removeSet: (i, si) => set((s) => s.active ? ({
-        active: { ...s.active, exercises: s.active.exercises.map((e, k) => k !== i ? e : { ...e, sets: e.sets.filter((_, j) => j !== si) }) },
-      }) : {}),
+      removeSet: (i, si) => set((s) => {
+        if (!s.active) return {};
+        const target = s.active.exercises[i]?.sets[si];
+        if (!target || target.done) return {};
+        return {
+          active: {
+            ...s.active,
+            exercises: s.active.exercises.map((e, k) =>
+              k !== i ? e : { ...e, sets: e.sets.filter((_, j) => j !== si) }
+            ),
+          },
+        };
+      }),
       updateSet: (i, si, patch) => set((s) => s.active ? ({
         active: {
           ...s.active,
@@ -275,81 +478,86 @@ export const useGame = create<State>()(
       }) : {}),
 
       completeSet: (i, si) => {
-        const s = get();
+        let s = get();
         if (!s.active) return null;
-        const entry = s.active.exercises[i];
-        const st = entry?.sets[si];
+        let entry = s.active.exercises[i];
+        let st = entry?.sets[si];
         if (!st) return null;
-        const ex = EX[entry.exId];
         const undo = st.done;
+
+        if (!undo && st.reps <= 0) {
+          return null;
+        }
+
+        if (!undo) {
+          const wkNow = weekOfUtc(Date.now());
+          if (s.weekKey && s.weekKey !== wkNow) {
+            s.checkWeeklyReset();
+            s = get();
+            entry = s.active?.exercises[i] ?? entry;
+            st = entry?.sets[si] ?? st;
+            if (!s.active || !st) return null;
+          }
+        }
+
+        const ex = EX[entry.exId];
         const isBw = isBodyweight(ex);
-        const lifted = isBw ? (s.bodyweight || 75) + st.kg : st.kg;
+        const bw = s.bodyweight || 75;
+        const lifted = isBw ? bw + st.kg : st.kg;
         const vol = lifted * st.reps;
         const est = e1rm(lifted, st.reps);
         const prev = s.best[entry.exId];
 
         if (undo) {
-          const wasPr = Boolean(st.pr);
-          const baseExp = Math.round(10 + vol / 25);
-          const baseGold = 3 + Math.floor(st.reps / 4);
-          const expSub = baseExp + (wasPr ? 100 : 0);
-          const goldSub = baseGold + (wasPr ? 25 : 0);
+          const a = st.awarded;
+          const wasPr = a?.pr ?? Boolean(st.pr);
+          const sVol = a?.vol ?? vol;
+          const expSub = a?.exp ?? (Math.round(10 + vol / 25) + (wasPr ? 100 : 0));
+          const goldSub = a?.gold ?? (3 + Math.floor(st.reps / 4) + (wasPr ? 25 : 0));
+          const bossSub = a?.bossDmg ?? 0;
+          const mKey = a?.muscle ?? ex?.muscle;
+          const sameWeek = !a || a.weekKey === s.weekKey;
 
-          // Recalculate best[entry.exId] excluding this undone set
-          let maxE1rm = 0;
-          let maxVol = 0;
-          for (const h of s.history) {
-            for (const e of h.exercises) {
-              if (e.exId === entry.exId) {
-                const eBw = isBodyweight(EX[e.exId]);
-                for (const x of e.sets) {
-                  const l = eBw ? (s.bodyweight || 75) + x.kg : x.kg;
-                  const eVal = e1rm(l, x.reps);
-                  const vVal = l * x.reps;
-                  if (eVal > maxE1rm) maxE1rm = eVal;
-                  if (vVal > maxVol) maxVol = vVal;
-                }
-              }
+          const { best: newBest, lastSet: newLastSet } = recomputeBestAndLast(
+            [entry.exId],
+            s.history,
+            s.active,
+            bw,
+            s.best,
+            s.lastSet,
+            { exIdx: i, setIdx: si }
+          );
+
+          const questSubs: Record<string, number> = {};
+          if (sameWeek && a?.questAdds) {
+            for (const qa of a.questAdds) {
+              questSubs[qa.id] = (questSubs[qa.id] ?? 0) + qa.delta;
             }
           }
-          if (s.active) {
-            for (let k = 0; k < s.active.exercises.length; k++) {
-              const actE = s.active.exercises[k];
-              if (actE.exId === entry.exId) {
-                const eBw = isBodyweight(EX[actE.exId]);
-                for (let j = 0; j < actE.sets.length; j++) {
-                  if (k === i && j === si) continue; // skip this undone set
-                  const x = actE.sets[j];
-                  if (x.done) {
-                    const l = eBw ? (s.bodyweight || 75) + x.kg : x.kg;
-                    const eVal = e1rm(l, x.reps);
-                    const vVal = l * x.reps;
-                    if (eVal > maxE1rm) maxE1rm = eVal;
-                    if (vVal > maxVol) maxVol = vVal;
-                  }
-                }
-              }
-            }
-          }
+          const nextQuests = (s.quests || generateDefaultQuests()).map((q) => {
+            const sub = questSubs[q.id];
+            if (!sub || q.claimed) return q;
+            return { ...q, current: Math.max(0, q.current - sub) };
+          });
 
-          const newBest = { ...s.best };
-          if (maxE1rm > 0) {
-            newBest[entry.exId] = { e1rm: maxE1rm, vol: maxVol };
-          } else {
-            delete newBest[entry.exId];
-          }
+          const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
+          if (mKey) mv[mKey] = Math.max(0, (mv[mKey] ?? 0) - sVol);
 
           set({
             exp: Math.max(0, s.exp - expSub),
             gold: Math.max(0, s.gold - goldSub),
-            tonnage: Math.max(0, s.tonnage - vol),
-            weeklyExp: Math.max(0, s.weeklyExp - expSub),
-            muscleVol: { ...s.muscleVol, [ex.muscle]: Math.max(0, s.muscleVol[ex.muscle] - vol) },
+            tonnage: Math.max(0, s.tonnage - sVol),
+            totalPrs: Math.max(0, (s.totalPrs || 0) - (wasPr ? 1 : 0)),
+            weeklyExp: sameWeek ? Math.max(0, s.weeklyExp - expSub) : s.weeklyExp,
+            bossDmgDealt: sameWeek ? Math.max(0, (s.bossDmgDealt || 0) - bossSub) : s.bossDmgDealt,
+            muscleVol: mv,
+            quests: nextQuests,
             best: newBest,
+            lastSet: newLastSet,
             active: {
               ...s.active,
               exercises: s.active.exercises.map((e, k) =>
-                k !== i ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: false, pr: false })) }
+                k !== i ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: false, pr: false, awarded: undefined })) }
               ),
             },
           });
@@ -368,21 +576,42 @@ export const useGame = create<State>()(
         const lvlAfter = levelOf(newExp);
         const wk = weekOfUtc(Date.now());
 
+        const questAdds: { id: string; delta: number }[] = [];
         const updatedQuests = (s.quests || generateDefaultQuests()).map((q) => {
           if (q.claimed) return q;
-          let add = 0;
-          if (q.type === "chest_vol" && ex.muscle === "chest") add = vol;
-          else if (q.type === "back_vol" && ex.muscle === "back") add = vol;
-          else if (q.type === "legs_vol" && ex.muscle === "legs") add = vol;
-          else if (q.type === "tonnage") add = vol;
-          else if (q.type === "prs" && pr) add = 1;
-          return add > 0 ? { ...q, current: Math.min(q.target, q.current + add) } : q;
+          let rawAdd = 0;
+          if (q.type === "chest_vol" && ex?.muscle === "chest") rawAdd = vol;
+          else if (q.type === "back_vol" && ex?.muscle === "back") rawAdd = vol;
+          else if (q.type === "legs_vol" && ex?.muscle === "legs") rawAdd = vol;
+          else if (q.type === "tonnage") rawAdd = vol;
+          else if (q.type === "prs" && pr) rawAdd = 1;
+          if (rawAdd <= 0) return q;
+          const nextCur = Math.min(q.target, q.current + rawAdd);
+          const applied = nextCur - q.current;
+          if (applied > 0) questAdds.push({ id: q.id, delta: applied });
+          return applied > 0 ? { ...q, current: nextCur } : q;
         });
 
-        const newPump = { ...(s.pumpUntil || zeroVol()), [ex.muscle]: Date.now() + 2 * 3600 * 1000 };
+        const muscleKey: Muscle = ex?.muscle ?? "chest";
+        const newPump = { ...zeroVol(), ...(s.pumpUntil || {}), [muscleKey]: Date.now() + 2 * 3600 * 1000 };
         const { bossDmgPct } = getCombatBonus(s.equipped);
         const bossHitDmg = Math.round(vol * (1 + bossDmgPct / 100));
         const newBossDmg = (s.bossDmgDealt || 0) + bossHitDmg;
+        const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
+        mv[muscleKey] = Math.max(0, (mv[muscleKey] ?? 0) + vol);
+
+        const awarded: SetAwarded = {
+          exp,
+          gold,
+          vol,
+          bossDmg: bossHitDmg,
+          muscle: muscleKey,
+          pr,
+          weekKey: wk,
+          questAdds: questAdds.length ? questAdds : undefined,
+        };
+
+        const shouldUpdateBest = pr || firstRecord || (prev !== undefined && vol > prev.vol);
 
         set({
           exp: newExp,
@@ -391,18 +620,18 @@ export const useGame = create<State>()(
           totalPrs: (s.totalPrs || 0) + (pr ? 1 : 0),
           weeklyExp: (s.weekKey === wk ? s.weeklyExp : 0) + exp,
           weekKey: wk,
-          muscleVol: { ...s.muscleVol, [ex.muscle]: Math.max(0, s.muscleVol[ex.muscle] + vol) },
+          muscleVol: mv,
           pumpUntil: newPump,
           quests: updatedQuests,
           bossDmgDealt: newBossDmg,
-          best: pr || firstRecord
-            ? { ...s.best, [entry.exId]: { e1rm: est, vol: Math.max(vol, prev?.vol ?? 0) } }
+          best: shouldUpdateBest
+            ? { ...s.best, [entry.exId]: { e1rm: Math.max(est, prev?.e1rm ?? 0), vol: Math.max(vol, prev?.vol ?? 0) } }
             : s.best,
           lastSet: { ...s.lastSet, [entry.exId]: { kg: st.kg, reps: st.reps } },
           active: {
             ...s.active,
             exercises: s.active.exercises.map((e, k) =>
-              k !== i ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: true, pr })) }
+              k !== i ? e : { ...e, sets: e.sets.map((x, j) => (j !== si ? x : { ...x, done: true, pr, awarded })) }
             ),
           },
         });
@@ -416,19 +645,26 @@ export const useGame = create<State>()(
       },
 
       finishWorkout: () => {
+        const now = Date.now();
+        const currentW = weekOfUtc(now);
+        if (get().weekKey && get().weekKey !== currentW) {
+          get().checkWeeklyReset();
+        }
         const s = get();
         if (!s.active) return null;
         const done = s.active.exercises
           .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
           .filter((e) => e.sets.length);
         if (!done.length) { set({ active: null, restEndsAt: null, restExName: null }); return null; }
-        const now = Date.now();
+
         const bw = s.bodyweight || 75;
+        const { bossDmgPct } = getCombatBonus(s.equipped);
         let tonnage = 0;
         let setsDone = 0;
         let prs = 0;
         let setsExp = 0;
         let setsGold = 0;
+        let bossDamage = 0;
         const topExercises: { name: string; bestSet: string }[] = [];
 
         for (const e of done) {
@@ -439,12 +675,13 @@ export const useGame = create<State>()(
           for (const x of e.sets) {
             setsDone++;
             const lifted = isBw ? bw + x.kg : x.kg;
-            const vol = lifted * x.reps;
+            const vol = x.awarded?.vol ?? lifted * x.reps;
             tonnage += vol;
-            const isPr = Boolean(x.pr);
+            const isPr = Boolean(x.awarded?.pr ?? x.pr);
             if (isPr) prs++;
-            setsExp += Math.round(10 + vol / 25) + (isPr ? 100 : 0);
-            setsGold += 3 + Math.floor(x.reps / 4) + (isPr ? 25 : 0);
+            setsExp += x.awarded?.exp ?? (Math.round(10 + vol / 25) + (isPr ? 100 : 0));
+            setsGold += x.awarded?.gold ?? (3 + Math.floor(x.reps / 4) + (isPr ? 25 : 0));
+            bossDamage += x.awarded?.bossDmg ?? Math.round(vol * (1 + bossDmgPct / 100));
             if (vol > bestVol) {
               bestVol = vol;
               bestStr = isBw ? (x.kg > 0 ? `+${x.kg}kg × ${x.reps}` : `PC × ${x.reps}`) : `${x.kg}kg × ${x.reps}`;
@@ -455,20 +692,20 @@ export const useGame = create<State>()(
           }
         }
 
-        const today = dayKey(now);
-        const yest = dayKey(now - 864e5);
-        const streak = s.lastDay === today ? s.streak : s.lastDay === yest || (s.lastDay && now - new Date(s.lastDay).getTime() < 3 * 864e5) ? s.streak + 1 : 1;
+        const today = localDayKey(now);
+        const todayMs = Date.parse(today + "T12:00:00Z");
+        const lastMs = s.lastDay ? Date.parse(s.lastDay + "T12:00:00Z") : NaN;
+        const dayDiff = Number.isFinite(lastMs) ? Math.round((todayMs - lastMs) / 864e5) : 999;
+        const streak = s.lastDay === today ? Math.max(1, s.streak) : dayDiff >= 1 && dayDiff <= 2 ? s.streak + 1 : 1;
         const bonus = 50 + streak * 10;
         const bonusGold = 20;
-        const { bossDmgPct } = getCombatBonus(s.equipped);
-        const bossDamage = Math.round(tonnage * (1 + bossDmgPct / 100));
         const totalExp = setsExp + bonus;
         const totalGold = setsGold + bonusGold;
         const nextMaxStreak = Math.max(s.maxStreak || 0, streak);
 
         const log: WorkoutLog = {
           id: uid(), name: s.active.name, startedAt: s.active.startedAt, endedAt: now,
-          exercises: done, tonnage, exp: bonus, prs, bossDamage, totalGold,
+          exercises: done, tonnage, exp: bonus, prs, bossDamage, totalGold, weekKey: currentW,
         };
         const nextHistory = [log, ...s.history].slice(0, 300);
 
@@ -524,56 +761,70 @@ export const useGame = create<State>()(
         const log = s.history.find((h) => h.id === id);
         if (!log) return {};
         const newHistory = s.history.filter((h) => h.id !== id);
+        const bw = s.bodyweight || 75;
+        const logWeek = log.weekKey || weekOfUtc(log.endedAt || log.startedAt);
+        const sameWeekAsCurrent = logWeek === s.weekKey;
 
-        // 1. Recalculate muscleVol
-        const mv = { ...s.muscleVol };
+        // 1. Recalculate muscleVol & exact EXP / Gold / BossDmg from this workout
+        const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
+        let setsExp = 0;
+        let setsGold = 0;
+        let sameWeekBossSub = 0;
+        let sameWeekExpSub = sameWeekAsCurrent ? log.exp : 0;
+        const touchedExIds: string[] = [];
+
         for (const e of log.exercises) {
+          touchedExIds.push(e.exId);
           const ex = EX[e.exId];
           const m = ex?.muscle;
           const isBw = isBodyweight(ex);
-          if (m) {
-            const volSub = e.sets.reduce((b, x) => b + (isBw ? (s.bodyweight || 75) + x.kg : x.kg) * x.reps, 0);
-            mv[m] = Math.max(0, mv[m] - volSub);
-          }
-        }
-
-        // 2. Re-evaluate best records for all exercises affected
-        const newBest = { ...s.best };
-        for (const entry of log.exercises) {
-          let maxE1rm = 0;
-          let maxVol = 0;
-          for (const h of newHistory) {
-            for (const e of h.exercises) {
-              if (e.exId === entry.exId) {
-                const ex = EX[e.exId];
-                const isBw = isBodyweight(ex);
-                for (const st of e.sets) {
-                  const lifted = isBw ? (s.bodyweight || 75) + st.kg : st.kg;
-                  const est = e1rm(lifted, st.reps);
-                  const vol = lifted * st.reps;
-                  if (est > maxE1rm) maxE1rm = est;
-                  if (vol > maxVol) maxVol = vol;
-                }
-              }
+          for (const st of e.sets) {
+            const a = st.awarded;
+            const lifted = isBw ? bw + st.kg : st.kg;
+            const fallbackVol = lifted * st.reps;
+            const sVol = a?.vol ?? fallbackVol;
+            const sExp = a?.exp ?? (Math.round(10 + fallbackVol / 25) + (st.pr ? 100 : 0));
+            const sGold = a?.gold ?? (3 + Math.floor(st.reps / 4) + (st.pr ? 25 : 0));
+            const sBoss = a?.bossDmg ?? 0;
+            const mKey = a?.muscle ?? m;
+            if (mKey) mv[mKey] = Math.max(0, (mv[mKey] ?? 0) - sVol);
+            setsExp += sExp;
+            setsGold += sGold;
+            if (!a ? sameWeekAsCurrent : a.weekKey === s.weekKey) {
+              sameWeekExpSub += sExp;
+              sameWeekBossSub += sBoss;
             }
           }
-          if (maxE1rm > 0) {
-            newBest[entry.exId] = { e1rm: maxE1rm, vol: maxVol };
-          } else {
-            delete newBest[entry.exId];
-          }
+        }
+        if (sameWeekBossSub === 0 && sameWeekAsCurrent && typeof log.bossDamage === "number") {
+          sameWeekBossSub = log.bossDamage;
         }
 
-        // 3. Recalculate streak & lastDay from remaining history
+        const workoutExp = log.exp + setsExp;
+        const workoutGold = typeof log.totalGold === "number" ? log.totalGold : 20 + setsGold;
+
+        // 2. Re-evaluate best records & lastSet for all exercises affected
+        const { best: newBest, lastSet: newLastSet } = recomputeBestAndLast(
+          touchedExIds,
+          newHistory,
+          s.active,
+          bw,
+          s.best,
+          s.lastSet
+        );
+
+        // 3. Recalculate streak & lastDay from remaining history (using local calendar days)
         let newStreak = 0;
         let newLastDay: string | null = null;
         if (newHistory.length > 0) {
-          const uniqueDays = Array.from(new Set(newHistory.map((h) => dayKey(h.startedAt)))).sort().reverse();
+          const uniqueDays = Array.from(
+            new Set(newHistory.map((h) => localDayKey(h.endedAt || h.startedAt)))
+          ).sort().reverse();
           newLastDay = uniqueDays[0] || null;
           newStreak = 1;
           for (let k = 0; k < uniqueDays.length - 1; k++) {
-            const d1 = new Date(uniqueDays[k]).getTime();
-            const d2 = new Date(uniqueDays[k + 1]).getTime();
+            const d1 = Date.parse(uniqueDays[k] + "T12:00:00Z");
+            const d2 = Date.parse(uniqueDays[k + 1] + "T12:00:00Z");
             const diffDays = Math.round((d1 - d2) / 864e5);
             if (diffDays <= 2) {
               newStreak++;
@@ -583,28 +834,17 @@ export const useGame = create<State>()(
           }
         }
 
-        // 4. Calculate total EXP and Gold that was generated by this workout
-        let workoutExp = log.exp;
-        let workoutGold = 20;
-        for (const e of log.exercises) {
-          const ex = EX[e.exId];
-          const isBw = isBodyweight(ex);
-          for (const st of e.sets) {
-            const lifted = isBw ? (s.bodyweight || 75) + st.kg : st.kg;
-            const vol = lifted * st.reps;
-            workoutExp += Math.round(10 + vol / 25) + (st.pr ? 100 : 0);
-            workoutGold += 3 + Math.floor(st.reps / 4) + (st.pr ? 25 : 0);
-          }
-        }
-
         return {
           history: newHistory,
           tonnage: Math.max(0, s.tonnage - log.tonnage),
           exp: Math.max(0, s.exp - workoutExp),
-          weeklyExp: Math.max(0, s.weeklyExp - workoutExp),
+          weeklyExp: sameWeekAsCurrent ? Math.max(0, s.weeklyExp - sameWeekExpSub) : s.weeklyExp,
           gold: Math.max(0, s.gold - workoutGold),
+          totalPrs: Math.max(0, (s.totalPrs || 0) - (log.prs || 0)),
+          bossDmgDealt: sameWeekAsCurrent ? Math.max(0, (s.bossDmgDealt || 0) - sameWeekBossSub) : s.bossDmgDealt,
           muscleVol: mv,
           best: newBest,
+          lastSet: newLastSet,
           streak: newStreak,
           lastDay: newLastDay,
         };
@@ -639,16 +879,19 @@ export const useGame = create<State>()(
 
       settleWeeklyTrophy: (forcedRank?: number) => {
         const s = get();
-        const lg = leagueOf(s.weeklyExp);
-        let rank = forcedRank;
-        if (!rank) {
-          if (s.weeklyExp >= 12000) rank = 1;
-          else if (s.weeklyExp >= 7000) rank = 2;
-          else if (s.weeklyExp >= 3500) rank = 3;
-          else if (s.weeklyExp >= 1200) rank = Math.floor(Math.random() * 6) + 4; // 4 to 9
-          else rank = Math.floor(Math.random() * 7) + 10; // 10 to 16
-        }
         const currentW = weekOfUtc(Date.now());
+        if (!forcedRank && s.weeklyExp <= 0) {
+          set({
+            weeklyExp: 0,
+            weekKey: currentW,
+            quests: generateDefaultQuests(),
+            bossDmgDealt: 0,
+            bossDefeated: false,
+          });
+          return null;
+        }
+        const lg = leagueOf(s.weeklyExp);
+        const rank = forcedRank ?? getWeeklyRankForExp(s.weeklyExp, s.weekKey || currentW);
         const trophy = createTrophyForRank(
           rank,
           lg.name,
@@ -686,12 +929,24 @@ export const useGame = create<State>()(
         if (!state) return;
         state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
         state.owned = Array.from(new Set([...(state.owned || []), ...Object.values(DEFAULT_EQUIP)]));
+        state.muscleVol = { ...zeroVol(), ...(state.muscleVol || {}) };
+        state.pumpUntil = { ...zeroVol(), ...(state.pumpUntil || {}) };
         state.pushPrefs = { ...DEFAULT_PUSH_PREFS, ...(state.pushPrefs || {}) };
         state.claimedAchievements = state.claimedAchievements || [];
         state.maxStreak = Math.max(state.maxStreak || 0, state.streak || 0);
         state.totalPrs = state.totalPrs || 0;
         state.bossKills = state.bossKills || 0;
         state.lastWorkoutSummary = null;
+        if (state.active?.exercises) {
+          state.active.exercises = state.active.exercises.map((e) => ({
+            ...e,
+            id: e.id || uid(),
+          }));
+        }
+        if (state.restEndsAt && Date.now() - state.restEndsAt > 60000) {
+          state.restEndsAt = null;
+          state.restExName = null;
+        }
       },
     },
   ),

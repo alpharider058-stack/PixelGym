@@ -3,7 +3,7 @@ import type { Exercise, Group, Muscle } from "./data";
 /** Equipment variants (name suffix, default-kg multiplier) */
 const EQ: Record<string, [string, number]> = {
   B: ["con Barra", 1], M: ["con Mancuernas", 0.4], P: ["en Polea", 0.5], Q: ["en Máquina", 0.8],
-  S: ["en Smith", 0.9], K: ["con Kettlebell", 0.35], L: ["con Banda", 0], Z: ["con Barra Z", 0.7],
+  S: ["en Smith", 0.9], K: ["con Kettlebell", 0.35], L: ["con Banda", 0.25], Z: ["con Barra Z", 0.7],
   C: ["con Peso Corporal", 0], U: ["Unilateral", 0.4], T: ["con Lastre", 0.25], D: ["con Disco", 0.3],
 };
 
@@ -97,12 +97,16 @@ const DEFS: Def[] = [
     "Elevación de Talones de Pie:BMSQ", "Elevación de Talones Sentado:QB", "Elevación de Talones en Prensa",
     "Burro", "Elevación de Talones Unilateral:MC", "Tibial Raise:CD", "Saltos a la Comba",
   ]],
-  ["chest", "push", "Abdomen", 0, 15, [
-    "Crunch:CDP", "Crunch en Máquina", "Crunch Inverso", "Crunch Bicicleta", "Crunch en Polea Arrodillado",
+  ["core", "push", "Abdomen", 25, 15, [
+    "Crunch:DP", "Crunch en Máquina", "Crunch en Polea Arrodillado", "Russian Twist:MD",
+    "Pallof Press:PL", "Leñador:PL", "Woodchopper con Mancuerna",
+  ]],
+  ["core", "push", "Abdomen", 0, 15, [
+    "Crunch:C", "Crunch Inverso", "Crunch Bicicleta",
     "Elevación de Piernas Colgado", "Elevación de Rodillas Colgado", "Elevación de Piernas Tumbado",
     "Toes to Bar", "Plancha", "Plancha Lateral", "Plancha con Lastre", "Rueda Abdominal", "Dragon Flag",
-    "Hollow Hold", "V-Ups", "Russian Twist:CMD", "Pallof Press:PL", "Leñador:PL", "Dead Bug",
-    "L-Sit", "Mountain Climbers", "Sit Up:CD", "Woodchopper con Mancuerna", "Copenhagen Plank",
+    "Hollow Hold", "V-Ups", "Russian Twist:C", "Dead Bug",
+    "L-Sit", "Mountain Climbers", "Sit Up:CD", "Copenhagen Plank",
   ]],
   ["legs", "legs", "Cuerpo Completo", 40, 8, [
     "Clean:BMK", "Power Clean", "Hang Clean", "Snatch:BMK", "Clean and Jerk", "Thruster:BMK",
@@ -114,18 +118,36 @@ const DEFS: Def[] = [
 const slug = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
+const BW_STANDALONE = new Set([
+  "dominadas_arqueras", "dominadas_negativas", "muscle_up", "australianas_en_anillas",
+  "hiperextensiones_inversas", "superman", "bird_dog", "press_pike", "flexiones_en_pino",
+  "chin_up_biceps", "colgarse_de_la_barra", "curl_nordico", "curl_femoral_con_fitball",
+  "curl_femoral_en_deslizadores", "glute_ham_raise", "frog_pump", "saltos_a_la_comba", "burpees",
+]);
+
 export function buildExercises(existing: Set<string>): Exercise[] {
   const out: Exercise[] = [];
   const seen = new Set(existing);
   for (const [muscle, group, sub, kg, reps, moves] of DEFS) {
     for (const m of moves) {
       const [name, codes] = m.split(":");
-      const variants: [string, number][] = codes ? [...codes].map((c) => [`${name} ${EQ[c][0]}`, EQ[c][1]]) : [[name, 1]];
-      for (const [full, mult] of variants) {
+      const variants: [string, number, string?][] = codes
+        ? [...codes].map((c) => [`${name} ${EQ[c][0]}`, EQ[c][1], c])
+        : [[name, 1, undefined]];
+      for (const [full, mult, code] of variants) {
         const id = slug(full);
         if (seen.has(id)) continue;
         seen.add(id);
-        out.push({ id, name: full, muscle, group, sub, defKg: Math.round((kg * mult) / 2.5) * 2.5, defReps: reps });
+        const isAssistBandPullup = code === "L" && id.includes("dominadas");
+        const isBw =
+          code === "C" ||
+          code === "T" ||
+          isAssistBandPullup ||
+          BW_STANDALONE.has(id) ||
+          (!code && kg === 0);
+        const rawKg = isAssistBandPullup ? 0 : Math.round((kg * mult) / 2.5) * 2.5;
+        const defKg = code === "L" && !isAssistBandPullup ? Math.max(5, rawKg) : rawKg;
+        out.push({ id, name: full, muscle, group, sub, defKg, defReps: reps, bw: isBw });
       }
     }
   }

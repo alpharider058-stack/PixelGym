@@ -5,6 +5,13 @@ export type PushSupportState = "supported" | "ios-needs-install" | "unsupported"
 
 const SYNC_SIG_KEY = "pixelgym-push-sync-sig";
 
+let pushQueue: Promise<unknown> = Promise.resolve();
+function enqueuePushOp<T>(fn: () => Promise<T>): Promise<T> {
+  const next = pushQueue.then(fn, fn);
+  pushQueue = next.catch(() => {});
+  return next;
+}
+
 function getPublicVapidKey(): string | undefined {
   return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || undefined;
 }
@@ -101,96 +108,100 @@ function getLocalTimeZone(): string {
 export async function subscribeToRemotePush(
   meta: ClientPushMeta
 ): Promise<{ ok: boolean; reason?: "denied" | "dismissed" | "unsupported" | "error"; message?: string }> {
-  const support = getPushSupportState();
-  if (support !== "supported") {
-    return { ok: false, reason: "unsupported" };
-  }
-  const vapidPublic = getPublicVapidKey();
-  if (!vapidPublic) {
-    return { ok: false, reason: "unsupported" };
-  }
-
-  try {
-    const permission = Notification.permission === "granted"
-      ? "granted"
-      : await Notification.requestPermission();
-
-    if (permission === "denied") {
-      return { ok: false, reason: "denied" };
+  return enqueuePushOp(async () => {
+    const support = getPushSupportState();
+    if (support !== "supported") {
+      return { ok: false, reason: "unsupported" };
     }
-    if (permission !== "granted") {
-      return { ok: false, reason: "dismissed" };
-    }
-
-    const reg = await ensureServiceWorkerReady();
-    let sub = await reg.pushManager.getSubscription();
-
-    // Rotate subscription if VAPID key changed cleanly
-    if (sub?.options?.applicationServerKey) {
-      const existingKey = uint8ArrayToBase64Url(sub.options.applicationServerKey);
-      if (existingKey !== vapidPublic) {
-        await sub.unsubscribe().catch(() => {});
-        sub = null;
-      }
-    }
-
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublic),
-      });
-    }
-
-    const payload = toPayload(sub);
-    if (!payload) {
-      return { ok: false, reason: "error", message: "Suscripción sin claves válidas" };
-    }
-
-    const timeZone = getLocalTimeZone();
-    const res = await fetch("/api/push/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subscription: payload,
-        ...meta,
-        timeZone,
-      }),
-    });
-
-    if (!res.ok) {
-      return { ok: false, reason: "error", message: `Error del servidor (${res.status})` };
+    const vapidPublic = getPublicVapidKey();
+    if (!vapidPublic) {
+      return { ok: false, reason: "unsupported" };
     }
 
     try {
-      localStorage.setItem(SYNC_SIG_KEY, buildSyncSignature(payload.endpoint, meta));
-    } catch {}
+      const permission = Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
 
-    return { ok: true };
-  } catch (err) {
-    console.error("[push-client] subscribeToRemotePush failed:", err);
-    return { ok: false, reason: "error", message: "No se pudo registrar el servicio Push" };
-  }
+      if (permission === "denied") {
+        return { ok: false, reason: "denied" };
+      }
+      if (permission !== "granted") {
+        return { ok: false, reason: "dismissed" };
+      }
+
+      const reg = await ensureServiceWorkerReady();
+      let sub = await reg.pushManager.getSubscription();
+
+      // Rotate subscription if VAPID key changed cleanly
+      if (sub?.options?.applicationServerKey) {
+        const existingKey = uint8ArrayToBase64Url(sub.options.applicationServerKey);
+        if (existingKey !== vapidPublic) {
+          await sub.unsubscribe().catch(() => {});
+          sub = null;
+        }
+      }
+
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublic),
+        });
+      }
+
+      const payload = toPayload(sub);
+      if (!payload) {
+        return { ok: false, reason: "error", message: "Suscripción sin claves válidas" };
+      }
+
+      const timeZone = getLocalTimeZone();
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscription: payload,
+          ...meta,
+          timeZone,
+        }),
+      });
+
+      if (!res.ok) {
+        return { ok: false, reason: "error", message: `Error del servidor (${res.status})` };
+      }
+
+      try {
+        localStorage.setItem(SYNC_SIG_KEY, buildSyncSignature(payload.endpoint, meta));
+      } catch {}
+
+      return { ok: true };
+    } catch (err) {
+      console.error("[push-client] subscribeToRemotePush failed:", err);
+      return { ok: false, reason: "error", message: "No se pudo registrar el servicio Push" };
+    }
+  });
 }
 
 export async function unsubscribeRemotePush(): Promise<boolean> {
-  try {
-    const sub = await getActivePushSubscription();
-    if (sub) {
-      const endpoint = sub.endpoint;
-      await sub.unsubscribe().catch(() => {});
-      await fetch("/api/push/subscribe", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpoint }),
-      }).catch(() => {});
-    }
+  return enqueuePushOp(async () => {
     try {
-      localStorage.removeItem(SYNC_SIG_KEY);
-    } catch {}
-    return true;
-  } catch {
-    return false;
-  }
+      const sub = await getActivePushSubscription();
+      if (sub) {
+        const endpoint = sub.endpoint;
+        await sub.unsubscribe().catch(() => {});
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint }),
+        }).catch(() => {});
+      }
+      try {
+        localStorage.removeItem(SYNC_SIG_KEY);
+      } catch {}
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 function buildSyncSignature(endpoint: string, meta: ClientPushMeta): string {
@@ -207,85 +218,94 @@ function buildSyncSignature(endpoint: string, meta: ClientPushMeta): string {
 export async function syncRemotePushState(
   meta: ClientPushMeta,
   { force = false }: { force?: boolean } = {}
-): Promise<void> {
-  try {
-    const sub = await getActivePushSubscription();
-    if (!sub) return;
-    const payload = toPayload(sub);
-    if (!payload) return;
+): Promise<{ ok: boolean; status?: number; resubscribe?: boolean }> {
+  return enqueuePushOp(async () => {
+    try {
+      const sub = await getActivePushSubscription();
+      if (!sub) return { ok: false };
+      const payload = toPayload(sub);
+      if (!payload) return { ok: false };
 
-    const sig = buildSyncSignature(payload.endpoint, meta);
-    if (!force) {
-      try {
-        if (localStorage.getItem(SYNC_SIG_KEY) === sig) return;
-      } catch {}
+      const sig = buildSyncSignature(payload.endpoint, meta);
+      if (!force) {
+        try {
+          if (localStorage.getItem(SYNC_SIG_KEY) === sig) return { ok: true };
+        } catch {}
+      }
+
+      const res = await fetch("/api/push/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          endpoint: payload.endpoint,
+          subscription: payload,
+          ...meta,
+          timeZone: getLocalTimeZone(),
+        }),
+      });
+
+      if (res.ok) {
+        try {
+          localStorage.setItem(SYNC_SIG_KEY, sig);
+        } catch {}
+        return { ok: true, status: res.status };
+      }
+      return { ok: false, status: res.status, resubscribe: res.status === 404 || res.status === 410 };
+    } catch {
+      // Non-blocking background sync
+      return { ok: false };
     }
-
-    const res = await fetch("/api/push/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        endpoint: payload.endpoint,
-        subscription: payload,
-        ...meta,
-        timeZone: getLocalTimeZone(),
-      }),
-    });
-
-    if (res.ok) {
-      try {
-        localStorage.setItem(SYNC_SIG_KEY, sig);
-      } catch {}
-    }
-  } catch {
-    // Non-blocking background sync
-  }
+  });
 }
 
 export async function scheduleRemoteRestPush(
   endsAt: number,
   exerciseName?: string
 ): Promise<boolean> {
-  try {
-    const sub = await getActivePushSubscription();
-    if (!sub) return false;
-    const res = await fetch("/api/push/rest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        endpoint: sub.endpoint,
-        endsAt,
-        exerciseName,
-      }),
-    });
-    if (!res.ok) return false;
-    const data = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      disabled?: boolean;
-      skipped?: boolean;
-    };
-    return Boolean(data.ok && !data.disabled && !data.skipped);
-  } catch {
-    return false;
-  }
+  return enqueuePushOp(async () => {
+    try {
+      const sub = await getActivePushSubscription();
+      if (!sub) return false;
+      const res = await fetch("/api/push/rest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          endsAt,
+          exerciseName,
+        }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        disabled?: boolean;
+        skipped?: boolean;
+      };
+      return Boolean(data.ok && !data.disabled && !data.skipped);
+    } catch {
+      return false;
+    }
+  });
 }
 
 export async function cancelRemoteRestPush(): Promise<void> {
-  try {
-    const sub = await getActivePushSubscription();
-    if (!sub) return;
-    await fetch("/api/push/rest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        endpoint: sub.endpoint,
-        cancel: true,
-      }),
-    });
-  } catch {}
+  return enqueuePushOp(async () => {
+    try {
+      const sub = await getActivePushSubscription();
+      if (!sub) return;
+      await fetch("/api/push/rest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          cancel: true,
+        }),
+      });
+    } catch {}
+  });
 }
 
 export async function triggerRemoteTestPush(

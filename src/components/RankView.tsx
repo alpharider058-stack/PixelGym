@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
-import { DEFAULT_EQUIP, Equipped, ITEMS, LEAGUES, MUSCLE_LABEL, Muscle, Slot, Trophy, getTimeUntilWeeklyReset, leagueOf, levelOf, titleOf } from "@/lib/data";
+import { LEAGUES, MUSCLE_LABEL, Muscle, Trophy, getSimulatedRivals, getTimeUntilWeeklyReset, leagueOf, levelOf, titleOf } from "@/lib/data";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import type { AvatarCfg } from "@/lib/avatar";
 import { sfx } from "@/lib/fx";
@@ -18,30 +18,18 @@ const SORTS: { id: Sort; label: string; unit: string }[] = [
   { id: "streak", label: "RACHA", unit: "días" }, { id: "rel", label: "F. RELAT.", unit: "x" },
 ];
 
-const NAMES = ["BRUTUS", "PIXELYN", "IRONMAX", "LA_ROCA", "SQUATZILLA", "DELTOIDE", "KAIBA", "CHUNLIFT", "MEGABICEP", "VALKYRA", "TOR_8BIT", "BENCHZERO", "GOKULIFT", "ARNOLDINO", "SAMUS_FIT", "LINKGAINS", "ZELDAMUSCLE", "MAXPOWER", "TRAPKING", "NEONQUEEN"];
-
-function rng(seed: number) { return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296); }
-
 function makeRivals(): Rival[] {
-  const hours = (Date.now() / 36e5) % 168; // progress through the week → live-looking drift
-  const tick = Math.floor(Date.now() / 60000);
-  return NAMES.map((name, i) => {
-    const r = rng(i * 7919 + 13);
-    const power = Math.pow(r(), 1.6);
-    const lvl = 1 + Math.floor(power * 22);
-    const tiers = Object.fromEntries((["chest", "back", "shoulders", "arms", "legs"] as Muscle[]).map((m) => [m, Math.min(4, Math.max(0, Math.round(power * 4 + (r() - 0.5) * 1.6)))])) as Record<Muscle, number>;
-    const pick = (slot: Slot) => { const opts = ITEMS.filter((it) => it.slot === slot && it.minLevel <= lvl); return opts[Math.floor(r() * opts.length)]?.id ?? DEFAULT_EQUIP[slot]; };
-    const equipped: Equipped = { shirt: pick("shirt"), belt: pick("belt"), wrist: pick("wrist"), hair: pick("hair"), aura: pick("aura"), weapon: pick("weapon"), pet: pick("pet"), bg: pick("bg") };
-    const jitter = rng(i * 31 + tick)();
-    return {
-      id: "r" + i, name, title: titleOf(lvl),
-      weekly: Math.round((power * 30000 + 200) * (hours / 168 + 0.15) + jitter * 40),
-      tonnage: Math.round(power * 900000 + r() * 30000),
-      streak: Math.round(power * 60 * r() + 1),
-      rel: +(0.6 + power * 1.9).toFixed(2),
-      cfg: { tiers, equipped, level: lvl },
-    };
-  });
+  return getSimulatedRivals().map((r) => ({
+    id: r.id,
+    name: r.name,
+    me: false,
+    weekly: r.weekly,
+    tonnage: r.tonnage,
+    streak: r.streak,
+    rel: r.rel,
+    title: r.title,
+    cfg: { tiers: r.tiers, equipped: r.equipped, level: r.level },
+  }));
 }
 
 
@@ -276,7 +264,7 @@ export default function RankView() {
                 {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => (
                   <div key={m} className="flex items-center gap-2">
                     <span className="pixel-title w-20 text-[7px]">{MUSCLE_LABEL[m]}</span>
-                    <div className="flex-1"><Bar value={sel.cfg.tiers[m] + 1} max={5} color="#ff3f6c" h={8} /></div>
+                    <div className="flex-1"><Bar value={(sel.cfg.tiers[m] ?? 0) + 1} max={5} color="#ff3f6c" h={8} /></div>
                   </div>
                 ))}
               </div>

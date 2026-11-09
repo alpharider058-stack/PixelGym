@@ -82,17 +82,40 @@ export default function PushPanel() {
   };
 
   useEffect(() => {
+    let alive = true;
     const refresh = async () => {
       const s = getPushSupportState();
+      if (!alive) return;
       setSupport(s);
       if (typeof Notification !== "undefined") {
         setPerm(Notification.permission);
       }
       const sub = await getActivePushSubscription();
-      setSubscribed(Boolean(sub));
+      if (!alive) return;
+      if (sub) {
+        setSubscribed(true);
+        const res = await syncRemotePushState(
+          {
+            prefs: pushPrefs,
+            heroName: name,
+            streak,
+            lastDay,
+            weeklyExp,
+          },
+          { force: true }
+        );
+        if (!alive) return;
+        if (res.resubscribe) {
+          setSubscribed(false);
+          setStatusMsg("Tu suscripción anterior expiró. Pulsa activar para reconectar.");
+        }
+      } else {
+        setSubscribed(false);
+      }
     };
     refresh();
-  }, []);
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (countdown === null) return;

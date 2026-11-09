@@ -493,6 +493,96 @@ function RoutineBuilder({ onClose, initial }: { onClose: () => void; initial?: R
           </div>
         </div>
 
+        {/* Selected Exercises Order Strip (Reorder / Remove before saving) */}
+        {sel.length > 0 && (
+          <div className="space-y-1.5 border-2 border-[var(--gold)]/60 bg-[#0c0e17] p-2.5 shadow-[2px_2px_0_#000]">
+            <div className="flex items-center justify-between">
+              <span className="pixel-title text-[8px] text-[var(--gold)] font-bold">
+                ORDEN SELECCIONADO ({sel.length})
+              </span>
+              <span className="pixel-title text-[6.5px] text-[#8b93b8]">
+                ▲ ▼ REORDENAR
+              </span>
+            </div>
+            <div className="space-y-1">
+              {sel.map((id, idx) => {
+                const exDef = EX[id];
+                return (
+                  <div
+                    key={id}
+                    className="flex items-center justify-between gap-2 border border-[#2c3350] bg-[#141826] px-2 py-1.5"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className="pixel-title text-[8px] text-[var(--gold)] shrink-0">
+                        {idx + 1}.
+                      </span>
+                      <span className="mono text-sm text-white truncate">
+                        {exDef?.name ?? id}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.85 }}
+                        transition={APPLE_TAP}
+                        disabled={idx === 0}
+                        onClick={() => {
+                          setSel((prev) => {
+                            if (idx <= 0) return prev;
+                            const next = [...prev];
+                            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                            return next;
+                          });
+                          sfx.tick();
+                          haptic(4);
+                        }}
+                        className="pixel-title flex h-7 w-7 items-center justify-center border border-[#2c3350] bg-[#10131f] text-[9px] text-[#8b93b8] disabled:opacity-20 active:border-[var(--gold)] active:text-white"
+                        aria-label={`Subir ${exDef?.name ?? id}`}
+                      >
+                        ▲
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.85 }}
+                        transition={APPLE_TAP}
+                        disabled={idx === sel.length - 1}
+                        onClick={() => {
+                          setSel((prev) => {
+                            if (idx >= prev.length - 1) return prev;
+                            const next = [...prev];
+                            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                            return next;
+                          });
+                          sfx.tick();
+                          haptic(4);
+                        }}
+                        className="pixel-title flex h-7 w-7 items-center justify-center border border-[#2c3350] bg-[#10131f] text-[9px] text-[#8b93b8] disabled:opacity-20 active:border-[var(--gold)] active:text-white"
+                        aria-label={`Bajar ${exDef?.name ?? id}`}
+                      >
+                        ▼
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.85 }}
+                        transition={APPLE_TAP}
+                        onClick={() => {
+                          setSel((prev) => prev.filter((_, k) => k !== idx));
+                          sfx.tick();
+                          haptic(4);
+                        }}
+                        className="pixel-title flex h-7 w-7 items-center justify-center border border-[#2c3350] bg-[#10131f] text-[9px] text-[#8b93b8] hover:border-[var(--red)] hover:text-[var(--red)] active:border-[var(--red)] active:text-[var(--red)]"
+                        aria-label={`Quitar ${exDef?.name ?? id}`}
+                      >
+                        ✕
+                      </motion.button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Exercise Selection List */}
         <div className="pt-1">
           <ExerciseList
@@ -690,16 +780,33 @@ export function Sheet({ children, onClose, title, footer }: { children: React.Re
 
 /* ---------------- Active logger ---------------- */
 function ActiveLogger() {
-  const { name, startedAt, count, doneSetsCount } = useGame(
-    useShallow((s) => ({
-      name: s.active!.name,
-      startedAt: s.active!.startedAt,
-      count: s.active!.exercises.length,
-      doneSetsCount: s.active!.exercises.reduce(
-        (acc, ex) => acc + ex.sets.filter((st) => st.done).length,
-        0
-      ),
-    }))
+  const { name, startedAt, exerciseKeys, totalSetsCount, doneSetsCount, completedKeys } = useGame(
+    useShallow((s) => {
+      const exs = s.active!.exercises;
+      const keys = exs.map((e, idx) => e.id || `${e.exId}-${idx}`);
+      let totalSets = 0;
+      let doneSets = 0;
+      const completed: string[] = [];
+      exs.forEach((e, idx) => {
+        totalSets += e.sets.length;
+        let exDone = 0;
+        for (const st of e.sets) {
+          if (st.done) exDone++;
+        }
+        doneSets += exDone;
+        if (e.sets.length > 0 && exDone === e.sets.length) {
+          completed.push(keys[idx]);
+        }
+      });
+      return {
+        name: s.active!.name,
+        startedAt: s.active!.startedAt,
+        exerciseKeys: keys,
+        totalSetsCount: totalSets,
+        doneSetsCount: doneSets,
+        completedKeys: completed,
+      };
+    })
   );
   const focusMode = useGame((s) => s.focusMode);
   const setFocusMode = useGame((s) => s.setFocusMode);
@@ -709,6 +816,8 @@ function ActiveLogger() {
   const [picking, setPicking] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [abandonModal, setAbandonModal] = useState(false);
+  const [emptyFinishModal, setEmptyFinishModal] = useState(false);
+  const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
 
   // Wake Lock API: Keep screen awake during workouts
   useEffect(() => {
@@ -734,51 +843,127 @@ function ActiveLogger() {
   const handleFinish = (el?: HTMLElement) => {
     const log = finish();
     if (log) {
+      const summary = useGame.getState().lastWorkoutSummary;
+      const totalExp = summary?.exp ?? log.exp;
+      const totalGold = summary?.gold ?? (log.totalGold ?? 20);
       sfx.levelUp();
       haptic([20, 40, 20, 40, 60]);
       if (el) {
         fxAt(el, (x, y) => [
           { kind: "burst", x, y, big: true, count: 50 },
-          { kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${log.exp} EXP  +20 ORO`, color: "#ffe14d" },
+          { kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${totalExp} EXP  +${totalGold} ORO`, color: "#ffe14d" },
           { kind: "shake", power: 3 },
         ]);
       } else {
-        fx({ kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${log.exp} EXP  +20 ORO`, color: "#ffe14d" });
+        fx({ kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${totalExp} EXP  +${totalGold} ORO`, color: "#ffe14d" });
       }
     }
   };
 
+  const progressPct = totalSetsCount > 0 ? Math.round((doneSetsCount / totalSetsCount) * 100) : 0;
+  const allCompletedCollapsed =
+    completedKeys.length > 0 && completedKeys.every((k) => !!collapsedIds[k]);
+
+  const toggleAllCompleted = () => {
+    const nextVal = !allCompletedCollapsed;
+    setCollapsedIds((prev) => {
+      const next = { ...prev };
+      for (const k of completedKeys) next[k] = nextVal;
+      return next;
+    });
+    sfx.tick();
+    haptic(6);
+  };
+
   return (
     <div className="flex flex-col gap-5 pb-4">
-      <Panel className="flex items-center justify-between gap-2 p-3">
-        <div className="min-w-0">
-          <div className="pixel-title text-[10px] text-[var(--gold)] truncate">⚔ {name}</div>
-          <Elapsed since={startedAt} />
+      <Panel className="p-3 space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="pixel-title text-[10px] text-[var(--gold)] truncate">⚔ {name}</div>
+            <Elapsed since={startedAt} />
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <PixelButton
+              variant={focusMode ? "ghost" : "cyan"}
+              className="px-2.5 py-2 text-[9px] flex items-center gap-1"
+              onClick={() => {
+                sfx.tap();
+                haptic(6);
+                setFocusMode(!focusMode);
+              }}
+              title={focusMode ? "Salir del Modo Enfoque para navegar por la app" : "Activar Modo Enfoque"}
+            >
+              <span>{focusMode ? "🧭 SALIR" : "🎯 ENFOQUE"}</span>
+            </PixelButton>
+            <PixelButton
+              variant="gold"
+              className="px-3 py-2 text-[10px]"
+              onClick={(e) => {
+                if (doneSetsCount === 0) {
+                  sfx.tick();
+                  setEmptyFinishModal(true);
+                  return;
+                }
+                handleFinish(e.currentTarget);
+              }}
+            >
+              FIN ✓
+            </PixelButton>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <PixelButton
-            variant={focusMode ? "ghost" : "cyan"}
-            className="px-2.5 py-2 text-[9px] flex items-center gap-1"
-            onClick={() => {
-              sfx.tap();
-              haptic(6);
-              setFocusMode(!focusMode);
-            }}
-            title={focusMode ? "Salir del Modo Enfoque para navegar por la app" : "Activar Modo Enfoque"}
-          >
-            <span>{focusMode ? "🧭 SALIR" : "🎯 ENFOQUE"}</span>
-          </PixelButton>
-          <PixelButton
-            variant="gold"
-            className="px-3 py-2 text-[10px]"
-            onClick={(e) => handleFinish(e.currentTarget)}
-          >
-            FIN ✓
-          </PixelButton>
+
+        {/* Session Progress Bar & Fold Completed Shortcut */}
+        <div className="border-t-2 border-[#2c3350] pt-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="pixel-title text-[7.5px] text-[#cbd5e1]">
+                SERIES {doneSetsCount}/{totalSetsCount}
+              </span>
+              <span
+                className={`mono text-xs font-bold tabular-nums ${
+                  progressPct === 100 ? "text-[var(--gold)]" : "text-[var(--green)]"
+                }`}
+              >
+                {progressPct}%
+              </span>
+            </div>
+            {completedKeys.length > 0 && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                transition={APPLE_TAP}
+                onClick={toggleAllCompleted}
+                className="pixel-title border border-[#3a7a30] bg-[#15291a] px-2 py-1 text-[6.5px] text-[#7dff6a] shadow-[1px_1px_0_#000] shrink-0"
+              >
+                {allCompletedCollapsed
+                  ? `▶ VER HECHOS (${completedKeys.length})`
+                  : `▼ PLEGAR HECHOS (${completedKeys.length})`}
+              </motion.button>
+            )}
+          </div>
+          <Bar
+            value={doneSetsCount}
+            max={Math.max(1, totalSetsCount)}
+            color={progressPct === 100 && totalSetsCount > 0 ? "var(--gold)" : "var(--green)"}
+            h={7}
+          />
         </div>
       </Panel>
 
-      {Array.from({ length: count }, (_, i) => <ExerciseCard key={i} index={i} total={count} />)}
+      {exerciseKeys.map((cardKey, i) => (
+        <ExerciseCard
+          key={cardKey}
+          index={i}
+          total={exerciseKeys.length}
+          collapsed={!!collapsedIds[cardKey]}
+          onToggleCollapse={() => {
+            setCollapsedIds((prev) => ({ ...prev, [cardKey]: !prev[cardKey] }));
+            sfx.tick();
+            haptic(5);
+          }}
+        />
+      ))}
 
       <div className="grid grid-cols-2 gap-3 mt-1">
         <PixelButton variant="ghost" className="py-3 text-[10px]" onClick={() => setPicking(true)}>＋ EJERCICIO</PixelButton>
@@ -803,6 +988,41 @@ function ActiveLogger() {
         {picking && (
           <Sheet title="AÑADIR EJERCICIO" onClose={() => setPicking(false)}>
             <ExerciseList onPick={(id) => { addExercise(id); setPicking(false); }} />
+          </Sheet>
+        )}
+        {emptyFinishModal && (
+          <Sheet title="SIN SERIES COMPLETADAS" onClose={() => setEmptyFinishModal(false)}>
+            <div className="space-y-4 text-center py-2">
+              <div className="text-3xl">📋</div>
+              <div className="space-y-1">
+                <h4 className="pixel-title text-xs text-[var(--gold)]">
+                  AÚN NO HAS MARCADO NINGUNA SERIE (✓)
+                </h4>
+                <p className="mono text-xs text-[#cbd5e1]">
+                  Toca el botón ✓ al terminar cada serie para sumar EXP, Oro y daño al Boss. Si sales ahora no se guardará la sesión.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 pt-2">
+                <PixelButton
+                  variant="gold"
+                  className="w-full py-3 text-[10px]"
+                  onClick={() => setEmptyFinishModal(false)}
+                >
+                  ⚔ VOLVER AL ENTRENAMIENTO
+                </PixelButton>
+                <PixelButton
+                  variant="danger"
+                  className="w-full py-3 text-[10px]"
+                  onClick={() => {
+                    setEmptyFinishModal(false);
+                    cancel();
+                    sfx.whoosh();
+                  }}
+                >
+                  ✕ SALIR SIN GUARDAR
+                </PixelButton>
+              </div>
+            </div>
           </Sheet>
         )}
         {abandonModal && (
@@ -867,7 +1087,17 @@ function Elapsed({ since }: { since: number }) {
   return <span ref={ref} className="mono text-lg tabular-nums text-[var(--cyan)]">00:00</span>;
 }
 
-const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: number; total: number }) {
+const ExerciseCard = memo(function ExerciseCard({
+  index,
+  total,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  index: number;
+  total: number;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const entry = useGame((s) => s.active?.exercises[index]);
   const best = useGame((s) => entry ? s.best[entry.exId] : undefined);
   const bodyweight = useGame((s) => s.bodyweight || 75);
@@ -879,7 +1109,9 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
   const setRestTimeForEx = useGame((s) => s.setRestTimeForEx);
   const [calcKg, setCalcKg] = useState<number | null>(null);
 
-  const pendingSetIndex = Math.max(0, entry?.sets.findIndex((s) => !s.done) ?? 0);
+  const firstPending = entry?.sets.findIndex((s) => !s.done) ?? -1;
+  const allDone = Boolean(entry && entry.sets.length > 0 && firstPending === -1);
+  const pendingSetIndex = firstPending >= 0 ? firstPending : Math.max(0, (entry?.sets.length ?? 1) - 1);
   const currentTargetSet = entry?.sets[pendingSetIndex] ?? entry?.sets[0];
   const overloadAdvice = useMemo(
     () => entry ? getSetOverloadAdvice(history, entry.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps) : null,
@@ -890,6 +1122,13 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
   const ex = EX[entry.exId];
   const isBw = isBodyweight(ex);
   const currentRest = restTimeByEx[entry.exId] ?? defaultRestForExercise(ex);
+  const doneCount = entry.sets.filter((s) => s.done).length;
+  const setCount = entry.sets.length;
+  const completedVol = entry.sets.reduce(
+    (acc, st) => (st.done ? acc + (isBw ? bodyweight + st.kg : st.kg) * st.reps : acc),
+    0
+  );
+  const prsInCard = entry.sets.filter((st) => st.done && st.pr).length;
 
   const cycleRest = () => {
     const opts = [60, 90, 120, 180, 240];
@@ -902,18 +1141,35 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
 
   return (
     <motion.div layout="position" transition={SPRING} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-      <Panel className="p-3">
+      <Panel className={`p-3 transition-shadow ${allDone ? "ring-2 ring-[#3a7a30]/80" : ""}`}>
         <div className="mb-2 flex items-start justify-between gap-2">
-          <div>
-            <div className="mono text-lg leading-tight">{ex?.name ?? entry.exId}</div>
-            <div className="pixel-title text-[8px] text-[#8b93b8]">
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="min-w-0 flex-1 text-left cursor-pointer group"
+            aria-expanded={!collapsed}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="pixel-title text-[8px] text-[#8b93b8] group-active:text-white shrink-0">
+                {collapsed ? "▶" : "▼"}
+              </span>
+              <span className="mono text-lg leading-tight truncate">{ex?.name ?? entry.exId}</span>
+              {allDone && (
+                <span className="pixel-title shrink-0 border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[6.5px] text-[#7dff6a]">
+                  ✓ HECHO
+                </span>
+              )}
+            </div>
+            <div className="pixel-title text-[8px] text-[#8b93b8] mt-0.5 truncate">
               {ex && MUSCLE_LABEL[ex.muscle]}
-              {isBw ? ` · CALISTENIA (${bodyweight}kg) + LASTRE` : ""}
+              {` · ${doneCount}/${setCount}`}
+              {isBw ? ` · +LASTRE` : ""}
               {best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}
             </div>
-          </div>
-          <div className="flex items-center gap-1">
+          </button>
+          <div className="flex items-center gap-1 shrink-0">
             <motion.button
+              type="button"
               whileHover={{ scale: 1.12 }}
               whileTap={{ scale: 0.82 }}
               transition={APPLE_TAP}
@@ -925,6 +1181,7 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
               ▲
             </motion.button>
             <motion.button
+              type="button"
               whileHover={{ scale: 1.12 }}
               whileTap={{ scale: 0.82 }}
               transition={APPLE_TAP}
@@ -936,6 +1193,7 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
               ▼
             </motion.button>
             <motion.button
+              type="button"
               whileHover={{ scale: 1.12 }}
               whileTap={{ scale: 0.82 }}
               transition={APPLE_TAP}
@@ -948,72 +1206,112 @@ const ExerciseCard = memo(function ExerciseCard({ index, total }: { index: numbe
           </div>
         </div>
 
-        {/* Toolbar: Custom Rest time & Plate Calculator */}
-        <div className="mb-2.5 flex items-center justify-between border-y border-[#2c3350] py-1.5 text-[8px]">
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.92 }}
-            transition={APPLE_TAP}
-            onClick={cycleRest}
-            className="pixel-title flex items-center gap-1.5 text-[var(--cyan)] active:text-white"
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex w-full items-center justify-between border border-[#2c3350] bg-[#0c0e17] px-2.5 py-2 text-left cursor-pointer"
           >
-            <span className="opacity-80">⏱ DESCANSO:</span>
-            <span className="border border-[#2c3350] bg-[#141826] px-1.5 py-0.5 font-bold shadow-[1px_1px_0_#000]">{currentRest}s</span>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.04, y: -1 }}
-            whileTap={{ scale: 0.92, y: 1 }}
-            transition={APPLE_TAP}
-            onClick={() => setCalcKg(lastKg)}
-            className="pixel-title flex items-center gap-1 border border-[var(--gold)] bg-[#241e0a] px-2 py-1 text-[var(--gold)] shadow-[1px_1px_0_#000]"
-          >
-            <span>🏋️ DISCOS</span>
-          </motion.button>
-        </div>
-
-        {/* Smart Progressive Overload Objective */}
-        {overloadAdvice && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-2.5 rounded border border-[#2c3350] bg-[#0c0e17] p-2 text-left shadow-[2px_2px_0_#000]"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="pixel-title text-[7.5px] text-[var(--gold)] flex items-center gap-1 font-bold">
-                <span>🎯</span> RETO SOBRECARGA PROGRESIVA
+            <div className="mono text-xs text-[#cbd5e1] tabular-nums">
+              {doneCount}/{setCount} series ·{" "}
+              <span className="font-bold text-[var(--cyan)]">
+                {Math.round(completedVol).toLocaleString("es")} kg
               </span>
-              {overloadAdvice.hasHistory ? (
-                <span className="pixel-title text-[7px] text-[#7dff6a] border border-[#3a7a30] bg-[#15291a] px-1 py-0.5">
-                  SERIE {pendingSetIndex + 1}
-                </span>
-              ) : (
-                <span className="pixel-title text-[7px] text-[#8b93b8]">
-                  LÍNEA BASE
-                </span>
+              {prsInCard > 0 && (
+                <span className="ml-2 font-bold text-[var(--gold)]">⚡ {prsInCard} PR</span>
               )}
             </div>
-            <p className="mono text-[10.5px] sm:text-xs leading-tight text-[#cbd5e1]">
-              {overloadAdvice.summaryText}
-            </p>
-          </motion.div>
-        )}
+            <span className="pixel-title text-[7px] text-[var(--gold)]">▶ VER SERIES</span>
+          </button>
+        ) : (
+          <>
+            {/* Toolbar: Custom Rest time & Plate Calculator */}
+            <div className="mb-2.5 flex items-center justify-between border-y border-[#2c3350] py-1.5 text-[8px]">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.92 }}
+                transition={APPLE_TAP}
+                onClick={cycleRest}
+                className="pixel-title flex items-center gap-1.5 text-[var(--cyan)] active:text-white"
+              >
+                <span className="opacity-80">⏱ DESCANSO:</span>
+                <span className="border border-[#2c3350] bg-[#141826] px-1.5 py-0.5 font-bold shadow-[1px_1px_0_#000]">{currentRest}s</span>
+              </motion.button>
+              <div className="flex items-center gap-1.5">
+                {allDone && onToggleCollapse && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.92 }}
+                    transition={APPLE_TAP}
+                    onClick={onToggleCollapse}
+                    className="pixel-title border border-[#3a7a30] bg-[#15291a] px-2 py-1 text-[#7dff6a] shadow-[1px_1px_0_#000]"
+                  >
+                    ▲ PLEGAR
+                  </motion.button>
+                )}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.04, y: -1 }}
+                  whileTap={{ scale: 0.92, y: 1 }}
+                  transition={APPLE_TAP}
+                  onClick={() => setCalcKg(lastKg)}
+                  className="pixel-title flex items-center gap-1 border border-[var(--gold)] bg-[#241e0a] px-2 py-1 text-[var(--gold)] shadow-[1px_1px_0_#000]"
+                >
+                  <span>🏋️ DISCOS</span>
+                </motion.button>
+              </div>
+            </div>
 
-        <div className="mono grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 px-0.5 text-xs text-[#8b93b8]">
-          <span className="text-center">#</span>
-          <span className="text-center">{isBw ? "+KG" : "KG"}</span>
-          <span className="text-center">REPS</span>
-          <span className="text-center">RIR</span>
-          <span />
-        </div>
-        <div className="space-y-2">
-          <AnimatePresence initial={false}>
-            {entry.sets.map((s, j) => <SetRow key={s.id} i={index} j={j} />)}
-          </AnimatePresence>
-        </div>
-        <PixelButton variant="ghost" className="mt-2 w-full py-2.5 text-[9px]" onClick={() => { addSet(index); sfx.tick(); }}>＋ SERIE (auto-fill)</PixelButton>
+            {/* Smart Progressive Overload Objective */}
+            {overloadAdvice && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-2.5 rounded border border-[#2c3350] bg-[#0c0e17] p-2 text-left shadow-[2px_2px_0_#000]"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="pixel-title text-[7.5px] text-[var(--gold)] flex items-center gap-1 font-bold">
+                    <span>🎯</span> RETO SOBRECARGA PROGRESIVA
+                  </span>
+                  {allDone ? (
+                    <span className="pixel-title text-[7px] text-[#7dff6a] border border-[#3a7a30] bg-[#15291a] px-1 py-0.5">
+                      ✓ COMPLETADO
+                    </span>
+                  ) : overloadAdvice.hasHistory ? (
+                    <span className="pixel-title text-[7px] text-[#7dff6a] border border-[#3a7a30] bg-[#15291a] px-1 py-0.5">
+                      SERIE {pendingSetIndex + 1}
+                    </span>
+                  ) : (
+                    <span className="pixel-title text-[7px] text-[#8b93b8]">
+                      LÍNEA BASE
+                    </span>
+                  )}
+                </div>
+                <p className="mono text-[10.5px] sm:text-xs leading-tight text-[#cbd5e1]">
+                  {overloadAdvice.summaryText}
+                </p>
+              </motion.div>
+            )}
 
-        {calcKg !== null && (
-          <PlateCalculator initialKg={calcKg} onClose={() => setCalcKg(null)} />
+            <div className="mono grid grid-cols-[1.1rem_1fr_1fr_2.4rem_2.6rem] items-center gap-1 px-0.5 text-xs text-[#8b93b8]">
+              <span className="text-center">#</span>
+              <span className="text-center">{isBw ? "+KG" : "KG"}</span>
+              <span className="text-center">REPS</span>
+              <span className="text-center">RIR</span>
+              <span />
+            </div>
+            <div className="space-y-2">
+              <AnimatePresence initial={false}>
+                {entry.sets.map((s, j) => <SetRow key={s.id} i={index} j={j} />)}
+              </AnimatePresence>
+            </div>
+            <PixelButton variant="ghost" className="mt-2 w-full py-2.5 text-[9px]" onClick={() => { addSet(index); sfx.tick(); }}>＋ SERIE (auto-fill)</PixelButton>
+
+            {calcKg !== null && (
+              <PlateCalculator initialKg={calcKg} onClose={() => setCalcKg(null)} />
+            )}
+          </>
         )}
       </Panel>
     </motion.div>
@@ -1029,15 +1327,16 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
   const complete = useGame((st) => st.completeSet);
   const remove = useGame((st) => st.removeSet);
   const startRest = useGame((st) => st.startRest);
+
+  const overloadAdvice = useMemo(
+    () => getSetOverloadAdvice(history, exId || "", j, s?.kg ?? 0, s?.reps ?? 0, s?.done ?? false),
+    [history, exId, j, s?.kg, s?.reps, s?.done]
+  );
+
   if (!s) return null;
 
   const ex = exId ? EX[exId] : undefined;
   const isBw = isBodyweight(ex);
-
-  const overloadAdvice = useMemo(
-    () => getSetOverloadAdvice(history, exId || "", j, s.kg, s.reps, s.done),
-    [history, exId, j, s.kg, s.reps, s.done]
-  );
 
   const step = (patch: { kg?: number; reps?: number }) => { update(i, j, patch); sfx.tick(); haptic(4); };
 
@@ -1049,11 +1348,21 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
   };
 
   const onDone = (el: HTMLElement) => {
+    if (!s.done && s.reps <= 0) {
+      sfx.error();
+      haptic([30, 20, 30]);
+      fxAt(el, (x, y) => [
+        { kind: "text", x, y: y - 16, text: "MÍN. 1 REP", color: "#ff3f6c" },
+      ]);
+      return;
+    }
     const res = complete(i, j);
     if (!res) return;
     if (res.exp < 0) { sfx.error(); return; }
     sfx.set(); haptic(res.pr ? [15, 30, 15, 30, 40] : 12);
     const restSeconds = exId ? (restTimeByEx[exId] ?? defaultRestForExercise(EX[exId])) : 90;
+    // Synchronously unlock audio inside user tap so lock-screen MediaSession activates
+    unlockSilentRestAudio(ex?.name, restSeconds);
     startRest(restSeconds, ex?.name);
     fxAt(el, (x, y) => {
       const effects: any[] = [
@@ -1256,6 +1565,137 @@ function Stepper({
   );
 }
 
+/* ---------------- Lock-Screen MediaSession Silent Audio Bridge ---------------- */
+let silentWavUrl: string | null = null;
+let sharedRestAudio: HTMLAudioElement | null = null;
+
+function getSilentWavUrl(): string {
+  if (silentWavUrl) return silentWavUrl;
+  const sampleRate = 16000;
+  const numSamples = 8000; // 0.5s stereo-safe mono silent 16-bit PCM WAV
+  const dataSize = numSamples * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+  const bytes = new Uint8Array(buffer);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  silentWavUrl = "data:audio/wav;base64," + btoa(bin);
+  return silentWavUrl;
+}
+
+function getSharedRestAudio(): HTMLAudioElement | null {
+  if (typeof window === "undefined" || typeof Audio === "undefined") return null;
+  if (!sharedRestAudio) {
+    const audio = new Audio(getSilentWavUrl());
+    audio.loop = true;
+    audio.volume = 0.01;
+    (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
+    sharedRestAudio = audio;
+  }
+  return sharedRestAudio;
+}
+
+function formatClockSec(sec: number): string {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function updateRestMediaMetadata(exName?: string | null, totalSec?: number) {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+  try {
+    if (typeof MediaMetadata !== "undefined") {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: exName ? `Descanso · ${exName}` : "Descanso PixelGym",
+        artist: totalSec
+          ? `Siguiente serie en ${formatClockSec(totalSec)} · ⏭ +30s · ⏮ -15s`
+          : "Siguiente serie lista pronto",
+        album: "PixelGym RPG",
+        artwork: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+        ],
+      });
+    }
+    navigator.mediaSession.playbackState = "playing";
+  } catch {}
+}
+
+function unlockSilentRestAudio(exName?: string | null, sec?: number) {
+  const audio = getSharedRestAudio();
+  if (audio) {
+    try {
+      const p = audio.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch {}
+  }
+  updateRestMediaMetadata(exName, sec);
+}
+
+function syncRestMediaPosition(durationSec: number, leftSec: number) {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+  try {
+    if (typeof navigator.mediaSession.setPositionState === "function") {
+      const safeDur = Math.max(1, durationSec);
+      const safePos = Math.max(0, Math.min(safeDur, safeDur - Math.max(0, leftSec)));
+      navigator.mediaSession.setPositionState({
+        duration: safeDur,
+        playbackRate: 1,
+        position: safePos,
+      });
+    }
+  } catch {}
+}
+
+function clearSilentRestMedia() {
+  if (sharedRestAudio) {
+    try {
+      sharedRestAudio.pause();
+      sharedRestAudio.currentTime = 0;
+    } catch {}
+  }
+  if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+      const actions: MediaSessionAction[] = [
+        "play",
+        "pause",
+        "stop",
+        "nexttrack",
+        "previoustrack",
+        "seekforward",
+        "seekbackward",
+      ];
+      for (const act of actions) {
+        try {
+          navigator.mediaSession.setActionHandler(act, null);
+        } catch {}
+      }
+      if (typeof navigator.mediaSession.setPositionState === "function") {
+        try {
+          navigator.mediaSession.setPositionState();
+        } catch {}
+      }
+    } catch {}
+  }
+}
+
 /* ---------------- Floating arcade rest timer (persists offline & background) ---------------- */
 export function RestTimer({
   hasNavbar = true,
@@ -1275,12 +1715,20 @@ export function RestTimer({
   const barRef = useRef<HTMLDivElement>(null);
   const prevEndsAtRef = useRef<number | null>(null);
   const remoteScheduledRef = useRef<boolean>(false);
+  const barDurRef = useRef<number>(90000);
+
+  useEffect(() => {
+    return () => {
+      clearSilentRestMedia();
+    };
+  }, []);
 
   useEffect(() => {
     const prev = prevEndsAtRef.current;
     prevEndsAtRef.current = endsAt;
 
     if (!endsAt) {
+      clearSilentRestMedia();
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: "CANCEL_REST_TIMER" });
       }
@@ -1291,9 +1739,11 @@ export function RestTimer({
       return;
     }
 
-    // Request notification permission for background alarms on mobile/PWA
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
+    // Discard stale persisted timer from a closed past session (>60s overdue) without alarm blast
+    if (Date.now() - endsAt > 60000) {
+      clearSilentRestMedia();
+      stop();
+      return;
     }
 
     let effectAlive = true;
@@ -1304,13 +1754,14 @@ export function RestTimer({
           type: "START_REST_TIMER",
           endsAt,
           notifyAt,
+          exerciseName: restExName || undefined,
         });
       }
     };
 
     // Schedule durable server Web Push fallback (works even if phone locks / app closes);
     // delay local SW notification slightly when remote push is armed to avoid double buzz.
-    if (restPushOn && endsAt > Date.now() + 1000) {
+    if (restPushOn && endsAt > Date.now() + 2500) {
       if (endsAt !== prev) {
         remoteScheduledRef.current = false;
         postSwTimer(endsAt + 12000);
@@ -1335,7 +1786,68 @@ export function RestTimer({
       postSwTimer(endsAt);
     }
 
-    const total = Math.max(1, endsAt - Date.now());
+    const total = Math.max(1000, endsAt - Date.now());
+    barDurRef.current = total;
+    const totalSec = Math.ceil(total / 1000);
+
+    // Sync Lock-Screen MediaSession card & handlers
+    updateRestMediaMetadata(restExName, totalSec);
+    const audio = getSharedRestAudio();
+    if (audio && audio.paused) {
+      try {
+        const p = audio.play();
+        if (p && typeof p.catch === "function") p.catch(() => {});
+      } catch {}
+    }
+    syncRestMediaPosition(totalSec, totalSec);
+
+    if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+      const bind = (act: MediaSessionAction, fn: MediaSessionActionHandler) => {
+        try {
+          navigator.mediaSession.setActionHandler(act, fn);
+        } catch {}
+      };
+      const add30FromMedia = () => {
+        const st = useGame.getState();
+        if (!st.restEndsAt) return;
+        const nextSec = Math.max(0, (st.restEndsAt - Date.now()) / 1000) + 30;
+        st.startRest(nextSec, st.restExName || undefined);
+        unlockSilentRestAudio(st.restExName, nextSec);
+        sfx.tick();
+      };
+      const sub15FromMedia = () => {
+        const st = useGame.getState();
+        if (!st.restEndsAt) return;
+        const nextSec = Math.max(1, (st.restEndsAt - Date.now()) / 1000 - 15);
+        st.startRest(nextSec, st.restExName || undefined);
+        unlockSilentRestAudio(st.restExName, nextSec);
+        sfx.tick();
+      };
+      const skipFromMedia = () => {
+        useGame.getState().stopRest();
+        sfx.tap();
+      };
+      bind("nexttrack", add30FromMedia);
+      bind("seekforward", add30FromMedia);
+      bind("previoustrack", sub15FromMedia);
+      bind("seekbackward", sub15FromMedia);
+      bind("stop", skipFromMedia);
+      bind("pause", () => {
+        const a = getSharedRestAudio();
+        if (a) a.pause();
+        try {
+          navigator.mediaSession.playbackState = "paused";
+        } catch {}
+      });
+      bind("play", () => {
+        const st = useGame.getState();
+        if (!st.restEndsAt) return;
+        const rem = Math.max(0, (st.restEndsAt - Date.now()) / 1000);
+        unlockSilentRestAudio(st.restExName, Math.ceil(rem));
+        syncRestMediaPosition(Math.max(1, barDurRef.current / 1000), rem);
+      });
+    }
+
     let raf = 0, lastSec = -1;
 
     const checkResume = () => {
@@ -1347,6 +1859,8 @@ export function RestTimer({
           fx({ kind: "text", x: window.innerWidth / 2, y: window.innerHeight / 2, text: "¡DESCANSO TERMINADO!", color: "#3df2ff" });
         }
         stop();
+      } else if (document.visibilityState === "visible") {
+        syncRestMediaPosition(Math.max(1, barDurRef.current / 1000), left / 1000);
       }
     };
 
@@ -1393,52 +1907,85 @@ export function RestTimer({
           transition={APPLE_BOUNCE}
           onClick={(e) => {
             if ((e.target as HTMLElement).closest("button")) return;
+            unlockSilentRestAudio(restExName, Math.ceil((endsAt - Date.now()) / 1000));
             if (showQuickReturn && onReturnToWorkout) {
               sfx.whoosh();
               haptic(8);
               onReturnToWorkout();
             }
           }}
-          className={`panel fixed left-1/2 z-50 w-[min(92vw,26rem)] p-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.85)] transition-[bottom] duration-200 ${
+          className={`panel fixed left-1/2 z-50 w-[min(94vw,26rem)] p-2.5 shadow-[0_6px_24px_rgba(0,0,0,0.85)] transition-[bottom] duration-200 ${
             hasNavbar
               ? "bottom-[calc(5.25rem+env(safe-area-inset-bottom))]"
               : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"
           } ${showQuickReturn ? "cursor-pointer ring-2 ring-[var(--cyan)]/70" : ""}`}
           style={{ x: "-50%" }}
         >
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col min-w-0">
-              <span className="pixel-title text-[9px] text-[var(--cyan)]">DESCANSO</span>
-              {showQuickReturn && (
-                <span className="pixel-title text-[6.5px] text-[var(--gold)] animate-pulse leading-tight">
-                  ▶ VOLVER AL ENTRENO
-                </span>
+          {/* Context row: DESCANSO + Current Exercise Name + Return Hint */}
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="pixel-title text-[8px] text-[var(--cyan)] shrink-0">⏱ DESCANSO</span>
+              {restExName && (
+                <span className="mono text-xs text-white truncate">· {restExName}</span>
               )}
             </div>
-            <span ref={ref} className="mono flex-1 text-center text-2xl tabular-nums font-bold text-[var(--gold)]">
+            {showQuickReturn && (
+              <span className="pixel-title text-[6.5px] text-[var(--gold)] animate-pulse leading-tight shrink-0">
+                ▶ VOLVER
+              </span>
+            )}
+          </div>
+
+          {/* Countdown + Quick Adjust Controls (-15s / +30s / SKIP) */}
+          <div className="flex items-center gap-1.5">
+            <span ref={ref} className="mono flex-1 text-left pl-0.5 text-2xl tabular-nums font-bold text-[var(--gold)]">
               1:30
             </span>
             <motion.button
+              type="button"
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.9 }}
               transition={APPLE_TAP}
-              className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-3 py-1.5 min-h-[34px] text-[9px] text-white active:border-[var(--gold)]"
+              className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-2.5 py-1.5 min-h-[34px] text-[8.5px] text-[#cbd5e1] active:border-[var(--cyan)]"
               onClick={() => {
-                start(Math.max(0, (endsAt - Date.now()) / 1000) + 30, restExName || undefined);
+                const nextSec = Math.max(1, (endsAt - Date.now()) / 1000 - 15);
+                start(nextSec, restExName || undefined);
+                unlockSilentRestAudio(restExName, Math.ceil(nextSec));
                 sfx.tick();
+                haptic(5);
               }}
+              aria-label="Restar 15 segundos"
+            >
+              -15s
+            </motion.button>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.9 }}
+              transition={APPLE_TAP}
+              className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-2.5 py-1.5 min-h-[34px] text-[8.5px] text-white active:border-[var(--gold)]"
+              onClick={() => {
+                const nextSec = Math.max(0, (endsAt - Date.now()) / 1000) + 30;
+                start(nextSec, restExName || undefined);
+                unlockSilentRestAudio(restExName, Math.ceil(nextSec));
+                sfx.tick();
+                haptic(5);
+              }}
+              aria-label="Sumar 30 segundos"
             >
               +30s
             </motion.button>
             <motion.button
+              type="button"
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.9 }}
               transition={APPLE_TAP}
-              className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-3 py-1.5 min-h-[34px] text-[9px] text-[#cbd5e1] active:border-[var(--red)]"
+              className="pixel-title border-2 border-[#4a5280] bg-[#141826] px-2.5 py-1.5 min-h-[34px] text-[8.5px] text-[#cbd5e1] active:border-[var(--red)]"
               onClick={() => {
                 stop();
                 sfx.tap();
               }}
+              aria-label="Saltar descanso"
             >
               SKIP
             </motion.button>
@@ -1518,7 +2065,9 @@ function WorkoutSummaryModal({
               </div>
               <div className="border border-[#2c3350] bg-[#10131f] px-2.5 py-1 flex items-center justify-between">
                 <span className="pixel-title text-[7px] text-[#8b93b8]">RACHA</span>
-                <span className="pixel-title text-[8px] text-[var(--gold)]">🔥 {summary.streak} DÍAS</span>
+                <span className="pixel-title text-[8px] text-[var(--gold)]">
+                  🔥 {summary.streak} {summary.streak === 1 ? "DÍA" : "DÍAS"}
+                </span>
               </div>
             </div>
           </div>
@@ -1535,7 +2084,9 @@ function WorkoutSummaryModal({
               <div className="mono text-xl font-bold text-[var(--cyan)] tabular-nums mt-0.5">
                 {durStr}
               </div>
-              <div className="mono text-[11px] text-[#8b93b8]">{summary.setsDone} series</div>
+              <div className="mono text-[11px] text-[#8b93b8]">
+                {summary.setsDone} {summary.setsDone === 1 ? "serie" : "series"}
+              </div>
             </motion.div>
 
             <motion.div

@@ -222,17 +222,31 @@ export default function AvatarView() {
               )}
 
               <div className="grid w-full grid-cols-4 gap-2 text-center">
-                {[["STR", st.str, "#ff3f6c"], ["HYP", st.hyp, "#c06cff"], ["STA", st.sta, "#3df2ff"], ["ORO", gold, "#ffe14d"]].map(([k, v, c]) => (
-                  <motion.div
-                    key={k as string}
+                {([
+                  ["STR", st.str, "#ff3f6c", "Fuerza máx (1RM)"],
+                  ["HYP", st.hyp, "#c06cff", "Nivel hipertrofia"],
+                  ["STA", st.sta, "#3df2ff", "Racha activa"],
+                  ["ORO", gold, "#ffe14d", "Oro de armería"],
+                ] as const).map(([k, v, c, tip]) => (
+                  <motion.button
+                    type="button"
+                    key={k}
                     whileHover={{ y: -2, scale: 1.03 }}
                     whileTap={{ scale: 0.95 }}
                     transition={APPLE_TAP}
+                    onClick={(e) => {
+                      sfx.tick();
+                      haptic(5);
+                      fxAt(e.currentTarget, (x, y) => [
+                        { kind: "text", x, y: y - 14, text: tip.toUpperCase(), color: c },
+                      ]);
+                    }}
                     className="border-2 border-[#2c3350] bg-[#10131f] p-2 cursor-pointer shadow-[2px_2px_0_#000]"
+                    aria-label={`${k}: ${v} (${tip})`}
                   >
-                    <div className="pixel-title text-[8px]" style={{ color: c as string }}>{k}</div>
+                    <div className="pixel-title text-[8px]" style={{ color: c }}>{k}</div>
                     <div className="mono text-lg tabular-nums">{v}</div>
-                  </motion.div>
+                  </motion.button>
                 ))}
               </div>
 
@@ -280,7 +294,7 @@ export default function AvatarView() {
                 </span>
               </div>
               {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => {
-                const v = muscleVol[m], t = tierOf(v), nx = TIER_KG[t + 1];
+                const v = muscleVol[m] ?? 0, t = tierOf(v), nx = TIER_KG[t + 1];
                 return (
                   <div key={m}>
                     <div className="flex justify-between">
@@ -429,7 +443,7 @@ function HeroSettingsPanel() {
               }
             }}
             maxLength={12}
-            className="pixel-title flex-1 min-w-0 border-2 border-[#2c3350] bg-[#10131f] px-3 py-2 text-xs text-white outline-none focus:border-[var(--gold)]"
+            className="mono flex-1 min-w-0 border-2 border-[#2c3350] bg-[#10131f] px-3 py-2 text-base font-bold uppercase text-white outline-none focus:border-[var(--gold)]"
           />
           <PixelButton
             variant="ghost"

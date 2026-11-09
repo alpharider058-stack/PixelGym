@@ -1,34 +1,54 @@
 "use client";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { useShallow } from "zustand/react/shallow";
 import { useGame, WorkoutLog } from "@/lib/store";
-import { e1rm, EX, isBodyweight, MUSCLE_LABEL, Muscle } from "@/lib/data";
+import { e1rm, EX, isBodyweight, localDayKey, MUSCLE_LABEL, Muscle } from "@/lib/data";
 import { haptic, sfx } from "@/lib/fx";
-import { Panel, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
+import { Panel, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import { Sheet } from "./GymView";
 
-function localDayKey(t: number): string {
-  const d = new Date(t);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+type HistoryTab = "summary" | "records" | "history" | "backup";
+
+const HISTORY_TABS: { id: HistoryTab; label: string; icon: string }[] = [
+  { id: "summary", label: "RESUMEN", icon: "📊" },
+  { id: "records", label: "RÉCORDS", icon: "🏆" },
+  { id: "history", label: "HISTORIAL", icon: "📜" },
+  { id: "backup", label: "BACKUP", icon: "💾" },
+];
+
+const normText = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export default function HistoryView() {
-  const history = useGame((s) => s.history);
-  const best = useGame((s) => s.best);
-  const bodyweight = useGame((s) => s.bodyweight ?? 75);
+  const { history, best, bodyweight, customRoutinesCount } = useGame(
+    useShallow((s) => ({
+      history: s.history || [],
+      best: s.best || {},
+      bodyweight: s.bodyweight ?? 75,
+      customRoutinesCount: (s.customRoutines || []).length,
+    }))
+  );
   const del = useGame((s) => s.deleteLog);
   const importBackupData = useGame((s) => s.importBackupData);
 
+  const [subTab, setSubTab] = useState<HistoryTab>("summary");
+  const [subDir, setSubDir] = useState(1);
+
+  const [selectedBarId, setSelectedBarId] = useState<string | null>(null);
+  const [recordQuery, setRecordQuery] = useState("");
+  const [recordMuscle, setRecordMuscle] = useState<"all" | Muscle>("all");
   const [open, setOpen] = useState<string | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [inspectExId, setInspectExId] = useState<string | null>(null);
 
-  const last = history.slice(0, 12).reverse();
-  const maxT = Math.max(1, ...last.map((h) => h.tonnage));
+  const last = useMemo(() => history.slice(0, 12).reverse(), [history]);
+  const maxT = useMemo(() => Math.max(1, ...last.map((h) => h.tonnage)), [last]);
+  const activeBar = useMemo(
+    () => last.find((h) => h.id === selectedBarId) ?? last[last.length - 1] ?? null,
+    [last, selectedBarId]
+  );
 
   // Weekly Comparative Analytics (This week Mon->Now vs Last week Mon->Sun)
   const weeklyStats = useMemo(() => {
@@ -47,6 +67,7 @@ export default function HistoryView() {
       shoulders: 0,
       arms: 0,
       legs: 0,
+      core: 0,
     };
 
     for (const h of history) {
@@ -56,7 +77,7 @@ export default function HistoryView() {
         thisWeekWorkouts++;
         for (const e of h.exercises) {
           const m = EX[e.exId]?.muscle;
-          if (m) setsByMuscle[m] += e.sets.length;
+          if (m) setsByMuscle[m] = (setsByMuscle[m] ?? 0) + e.sets.length;
         }
       } else if (t >= prevWeekStart && t < thisWeekStart) {
         prevWeekTonnage += h.tonnage;
@@ -71,6 +92,31 @@ export default function HistoryView() {
     return { thisWeekTonnage, prevWeekTonnage, thisWeekWorkouts, pctDelta, setsByMuscle };
   }, [history]);
 
+  const sortedRecords = useMemo(() => {
+    const q = normText(recordQuery.trim());
+    return Object.entries(best)
+      .filter(([id]) => {
+        const ex = EX[id];
+        if (recordMuscle !== "all" && ex?.muscle !== recordMuscle) return false;
+        if (!q) return true;
+        return normText(ex?.name ?? id).includes(q);
+      })
+      .sort((a, b) => b[1].e1rm - a[1].e1rm);
+  }, [best, recordQuery, recordMuscle]);
+
+  const totalRecordCount = Object.keys(best).length;
+
+  const activeIdx = Math.max(0, HISTORY_TABS.findIndex((t) => t.id === subTab));
+  const goSub = (nextTab: HistoryTab) => {
+    if (nextTab === subTab) return;
+    const prevIdx = HISTORY_TABS.findIndex((t) => t.id === subTab);
+    const nextIdx = HISTORY_TABS.findIndex((t) => t.id === nextTab);
+    setSubDir(nextIdx >= prevIdx ? 1 : -1);
+    setSubTab(nextTab);
+    sfx.tick();
+    haptic(6);
+  };
+
   const exportJson = () => {
     sfx.coin();
     haptic([20, 40]);
@@ -82,12 +128,19 @@ export default function HistoryView() {
       gold: state.gold,
       tonnage: state.tonnage,
       weeklyExp: state.weeklyExp,
+      weekKey: state.weekKey,
       streak: state.streak,
       maxStreak: state.maxStreak,
+      lastDay: state.lastDay,
       totalPrs: state.totalPrs,
       bossKills: state.bossKills,
       muscleVol: state.muscleVol,
       best: state.best,
+      lastSet: state.lastSet,
+      restTimeByEx: state.restTimeByEx,
+      quests: state.quests,
+      bossDmgDealt: state.bossDmgDealt,
+      bossDefeated: state.bossDefeated,
       history: state.history,
       trophies: state.trophies,
       claimedAchievements: state.claimedAchievements,
@@ -96,13 +149,16 @@ export default function HistoryView() {
       deletedRoutineIds: state.deletedRoutineIds,
       owned: state.owned,
       equipped: state.equipped,
+      sound: state.sound,
+      focusMode: state.focusMode,
+      pushPrefs: state.pushPrefs,
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pixelgym-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `pixelgym-backup-${localDayKey(Date.now())}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -110,25 +166,26 @@ export default function HistoryView() {
   const exportCsv = () => {
     sfx.coin();
     haptic([20, 40]);
+    const csvCell = (val: string) => `"${String(val).replace(/"/g, '""')}"`;
     const headers = "Fecha,Rutina,DuracionMin,Ejercicio,Serie,Kilos,Reps,EsPR\n";
     const rows: string[] = [];
     for (const h of history) {
-      const date = new Date(h.startedAt).toISOString().slice(0, 10);
-      const min = Math.round((h.endedAt - h.startedAt) / 60000);
+      const date = localDayKey(h.startedAt);
+      const min = Math.max(1, Math.round((h.endedAt - h.startedAt) / 60000));
       for (const e of h.exercises) {
         const exName = EX[e.exId]?.name ?? e.exId;
         e.sets.forEach((s, idx) => {
           rows.push(
-            `"${date}","${h.name}",${min},"${exName}",${idx + 1},${s.kg},${s.reps},${s.pr ? "SI" : "NO"}`
+            `${csvCell(date)},${csvCell(h.name)},${min},${csvCell(exName)},${idx + 1},${s.kg},${s.reps},${s.pr ? "SI" : "NO"}`
           );
         });
       }
     }
-    const blob = new Blob([headers + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\ufeff" + headers + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pixelgym-entrenamientos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `pixelgym-entrenamientos-${localDayKey(Date.now())}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -160,244 +217,512 @@ export default function HistoryView() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* TONELAJE + COMPARATIVA SEMANAL */}
-      <Panel className="p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="pixel-title text-[10px] text-[var(--gold)]">TONELAJE · ÚLTIMAS SESIONES</h3>
-          {weeklyStats.pctDelta !== null ? (
-            <span
-              className={`pixel-title border px-2 py-0.5 text-[7px] font-bold shadow-[1px_1px_0_#000] ${
-                weeklyStats.pctDelta > 0
-                  ? "border-[#7dff6a] bg-[#15291a] text-[#7dff6a]"
-                  : weeklyStats.pctDelta < 0
-                  ? "border-[var(--red)] bg-[#3a151f] text-[var(--red)]"
-                  : "border-[#2c3350] bg-[#10131f] text-[#cbd5e1]"
-              }`}
-            >
-              {weeklyStats.pctDelta > 0 ? `▲ +${weeklyStats.pctDelta}%` : weeklyStats.pctDelta < 0 ? `▼ ${weeklyStats.pctDelta}%` : "＝ 0%"} VS SEM. ANTERIOR
-            </span>
-          ) : weeklyStats.thisWeekTonnage > 0 ? (
-            <span className="pixel-title border border-[var(--cyan)] bg-[#0d2330] px-2 py-0.5 text-[7px] text-[var(--cyan)]">
-              ★ SEMANA EN MARCHA
-            </span>
-          ) : null}
+      {/* Sub-navegación fija en 4 pestañas para mantener PROGRESO limpio */}
+      <div className="border-2 border-[#2c3350] bg-[#10131f] p-1 shadow-[3px_3px_0_#000]">
+        <div className="relative grid grid-cols-4">
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/4"
+            initial={false}
+            animate={{ x: `${activeIdx * 100}%` }}
+            transition={APPLE_SPRING}
+          >
+            <div className="h-full w-full bg-[var(--gold)] border-2 border-black shadow-[2px_2px_0_#000]" />
+          </motion.div>
+
+          {HISTORY_TABS.map((t) => {
+            const active = subTab === t.id;
+            return (
+              <motion.button
+                key={t.id}
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                transition={APPLE_TAP}
+                onClick={() => goSub(t.id)}
+                className={`relative z-10 flex flex-col items-center justify-center gap-1 py-2 transition-colors cursor-pointer ${
+                  active ? "text-black" : "text-[#8b93b8]"
+                }`}
+                aria-label={t.label}
+              >
+                <span className="text-sm leading-none">{t.icon}</span>
+                <span className="pixel-title text-[7px] font-bold leading-none">
+                  {t.label}
+                </span>
+              </motion.button>
+            );
+          })}
         </div>
-
-        {last.length ? (
-          <div className="flex h-32 items-end gap-1">
-            {last.map((h, i) => (
-              <motion.div
-                key={h.id}
-                className="flex-1 bg-[var(--cyan)] cursor-pointer"
-                style={{ height: "100%", originY: 1, boxShadow: "inset -3px 0 0 rgba(0,0,0,.35)" }}
-                initial={{ scaleY: 0 }}
-                animate={{ scaleY: Math.max(0.04, h.tonnage / maxT) }}
-                whileHover={{ scaleY: Math.min(1, (h.tonnage / maxT) * 1.1) }}
-                transition={{ ...APPLE_SPRING, delay: i * 0.03 }}
-                title={`${h.name}: ${Math.round(h.tonnage).toLocaleString("es")} kg`}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="mono text-[#8b93b8]">Aún no hay sesiones. ¡Ve al gimnasio!</p>
-        )}
-
-        {/* Weekly Muscle Series Breakdown */}
-        <div className="border-t-2 border-[#2c3350] pt-2.5 space-y-2">
-          <div className="flex items-center justify-between text-[7px] pixel-title text-[#8b93b8]">
-            <span>SERIES ESTA SEMANA</span>
-            <span className="text-white tabular-nums">
-              {Math.round(weeklyStats.thisWeekTonnage).toLocaleString("es")} kg
-              {weeklyStats.prevWeekTonnage > 0
-                ? ` / ${Math.round(weeklyStats.prevWeekTonnage).toLocaleString("es")} ant.`
-                : ""}
-            </span>
-          </div>
-          <div className="grid grid-cols-5 gap-1.5 text-center">
-            {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => {
-              const cnt = weeklyStats.setsByMuscle[m];
-              return (
-                <div
-                  key={m}
-                  className={`border px-1 py-1.5 ${
-                    cnt > 0 ? "border-[var(--cyan)]/50 bg-[#10131f]" : "border-[#2c3350] bg-[#0c0e17] opacity-65"
-                  }`}
-                >
-                  <div className="pixel-title text-[5.5px] text-[#8b93b8] truncate">
-                    {MUSCLE_LABEL[m].slice(0, 6)}
-                  </div>
-                  <div className={`mono text-base font-bold leading-none mt-0.5 tabular-nums ${cnt > 0 ? "text-[var(--cyan)]" : "text-[#636c8f]"}`}>
-                    {cnt}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Panel>
-
-      {/* CALENDARIO DE CONSISTENCIA (12 SEMANAS / 84 DÍAS) */}
-      <ConsistencyCalendar history={history} />
-
-      {/* RÉCORDS (INTERACTIVOS -> ABREN GRÁFICA) */}
-      <Panel className="p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="pixel-title text-[10px] text-[var(--gold)]">RÉCORDS (1RM EST.)</h3>
-          {Object.keys(best).length > 0 && (
-            <span className="pixel-title text-[6.5px] text-[#8b93b8]">TOCA PARA VER GRÁFICA</span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(best).sort((a, b) => b[1].e1rm - a[1].e1rm).map(([id, b]) => (
-            <motion.button
-              key={id}
-              whileHover={{ y: -2, scale: 1.02 }}
-              whileTap={{ scale: 0.96 }}
-              transition={APPLE_TAP}
-              onClick={() => {
-                setInspectExId(id);
-                sfx.tap();
-                haptic(6);
-              }}
-              className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 text-left cursor-pointer shadow-[2px_2px_0_#000] active:border-[var(--gold)]"
-            >
-              <div className="mono truncate text-sm text-white">{EX[id]?.name ?? id}</div>
-              <div className="mt-0.5 flex items-baseline justify-between">
-                <span className="mono text-lg tabular-nums font-bold text-[var(--red)]">{b.e1rm.toFixed(1)} kg</span>
-                <span className="pixel-title text-[6px] text-[var(--cyan)]">📈 VER</span>
-              </div>
-            </motion.button>
-          ))}
-          {!Object.keys(best).length && <p className="mono col-span-2 text-[#8b93b8]">Sin récords todavía.</p>}
-        </div>
-      </Panel>
-
-      {/* HISTORIAL */}
-      <div className="flex flex-col gap-3">
-        <h3 className="pixel-title text-[10px] text-[var(--gold)]">HISTORIAL</h3>
-        <AnimatePresence initial={false}>
-          {history.map((h) => (
-            <motion.div
-              key={h.id}
-              layout="position"
-              transition={APPLE_SPRING}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-            >
-              <Panel className="p-3">
-                <motion.button
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={APPLE_TAP}
-                  className="flex w-full items-center justify-between text-left cursor-pointer"
-                  onClick={() => { setOpen(open === h.id ? null : h.id); sfx.tick(); }}
-                >
-                  <div>
-                    <div className="pixel-title text-[9px]">{h.name}</div>
-                    <div className="mono text-sm text-[#8b93b8]">{new Date(h.startedAt).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" })} · {Math.round((h.endedAt - h.startedAt) / 60000)} min</div>
-                  </div>
-                  <span className="mono text-base tabular-nums text-[var(--cyan)]">{Math.round(h.tonnage).toLocaleString("es")} kg</span>
-                </motion.button>
-                <AnimatePresence initial={false}>
-                  {open === h.id && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={APPLE_SPRING}
-                      className="mt-2 space-y-1 border-t-2 border-[#2c3350] pt-2"
-                    >
-                      {h.exercises.map((e, k) => (
-                        <div key={k} className="mono flex justify-between gap-2 text-sm">
-                          <span>{EX[e.exId]?.name ?? e.exId}</span>
-                          <span className="tabular-nums text-[#8b93b8]">
-                            {e.sets.map((s) => {
-                              const isBw = isBodyweight(EX[e.exId]);
-                              return isBw ? (s.kg > 0 ? `+${s.kg}kg×${s.reps}` : `PC×${s.reps}`) : `${s.kg}×${s.reps}`;
-                            }).join(" · ")}
-                          </span>
-                        </div>
-                      ))}
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.92 }}
-                        transition={APPLE_TAP}
-                        className="pixel-title mt-2 w-full border-2 border-[var(--red)] py-2 text-[9px] text-[var(--red)] cursor-pointer"
-                        onClick={() => { if (armed === h.id) { del(h.id); sfx.whoosh(); setArmed(null); } else { setArmed(h.id); sfx.error(); } }}
-                      >
-                        {armed === h.id ? "¿CONFIRMAR BORRADO?" : "ELIMINAR REGISTRO"}
-                      </motion.button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </Panel>
-            </motion.div>
-          ))}
-        </AnimatePresence>
       </div>
 
-      {/* COPIA DE SEGURIDAD & EXPORTACIÓN */}
-      <Panel className="p-4 space-y-3">
-        <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-base">💾</span>
-            <div>
-              <h3 className="pixel-title text-[10px] text-[var(--gold)]">COPIA DE SEGURIDAD</h3>
-              <span className="pixel-title text-[7px] text-[#8b93b8]">EXPORTA O RESTAURA TUS DATOS</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <motion.button
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.94, y: 1 }}
-            transition={APPLE_TAP}
-            onClick={exportJson}
-            className="pixel-title flex items-center justify-center gap-1.5 border-2 border-[var(--cyan)] bg-[#0d222d] py-2.5 text-[8px] text-[var(--cyan)] shadow-[2px_2px_0_#000] cursor-pointer"
-          >
-            <span>📤 BACKUP (JSON)</span>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.94, y: 1 }}
-            transition={APPLE_TAP}
-            onClick={exportCsv}
-            className="pixel-title flex items-center justify-center gap-1.5 border-2 border-[var(--gold)] bg-[#241e0a] py-2.5 text-[8px] text-[var(--gold)] shadow-[2px_2px_0_#000] cursor-pointer"
-          >
-            <span>📊 EXCEL (CSV)</span>
-          </motion.button>
-        </div>
-
-        <div>
-          <motion.label
-            whileHover={{ scale: 1.015, y: -1 }}
-            whileTap={{ scale: 0.95, y: 1 }}
-            transition={APPLE_TAP}
-            className="pixel-title block w-full cursor-pointer border-2 border-[#4a5280] bg-[#1d2236] py-3 text-center text-[8px] text-white shadow-[2px_2px_0_#000]"
-          >
-            <span>📥 RESTAURAR COPIA (JSON)</span>
-            <input
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-            />
-          </motion.label>
-        </div>
-
-        {importStatus && (
+      <AnimatePresence mode="wait" initial={false}>
+        {subTab === "summary" && (
           <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={APPLE_BOUNCE}
-            className="pixel-title text-center text-[8px] text-[var(--green)]"
+            key="hist-summary"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
           >
-            {importStatus}
+            {/* TONELAJE + COMPARATIVA SEMANAL */}
+            <Panel className="p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="pixel-title text-[10px] text-[var(--gold)]">TONELAJE · ÚLTIMAS SESIONES</h3>
+                {weeklyStats.pctDelta !== null ? (
+                  <span
+                    className={`pixel-title border px-2 py-0.5 text-[7px] font-bold shadow-[1px_1px_0_#000] ${
+                      weeklyStats.pctDelta > 0
+                        ? "border-[#7dff6a] bg-[#15291a] text-[#7dff6a]"
+                        : weeklyStats.pctDelta < 0
+                        ? "border-[var(--red)] bg-[#3a151f] text-[var(--red)]"
+                        : "border-[#2c3350] bg-[#10131f] text-[#cbd5e1]"
+                    }`}
+                  >
+                    {weeklyStats.pctDelta > 0
+                      ? `▲ +${weeklyStats.pctDelta}%`
+                      : weeklyStats.pctDelta < 0
+                      ? `▼ ${weeklyStats.pctDelta}%`
+                      : "＝ 0%"}{" "}
+                    VS SEM. ANTERIOR
+                  </span>
+                ) : weeklyStats.thisWeekTonnage > 0 ? (
+                  <span className="pixel-title border border-[var(--cyan)] bg-[#0d2330] px-2 py-0.5 text-[7px] text-[var(--cyan)]">
+                    ★ SEMANA EN MARCHA
+                  </span>
+                ) : null}
+              </div>
+
+              {last.length ? (
+                <div className="space-y-2.5">
+                  <div className="flex h-32 items-end gap-1.5 px-0.5">
+                    {last.map((h, i) => {
+                      const isSel = activeBar?.id === h.id;
+                      return (
+                        <motion.button
+                          key={h.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBarId(h.id);
+                            sfx.tick();
+                            haptic(5);
+                          }}
+                          className={`flex-1 cursor-pointer transition-colors ${
+                            isSel
+                              ? "bg-[var(--gold)] ring-2 ring-white/80"
+                              : "bg-[var(--cyan)] opacity-85"
+                          }`}
+                          style={{
+                            height: "100%",
+                            originY: 1,
+                            boxShadow: "inset -3px 0 0 rgba(0,0,0,.35)",
+                          }}
+                          initial={{ scaleY: 0 }}
+                          animate={{ scaleY: Math.max(0.06, h.tonnage / maxT) }}
+                          whileTap={{ scaleY: Math.max(0.05, (h.tonnage / maxT) * 0.94) }}
+                          transition={{ ...APPLE_SPRING, delay: i * 0.025 }}
+                          aria-label={`${h.name}: ${Math.round(h.tonnage).toLocaleString("es")} kg`}
+                        />
+                      );
+                    })}
+                  </div>
+                  {activeBar && (
+                    <div className="flex items-center justify-between border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5">
+                      <div className="min-w-0">
+                        <div className="pixel-title text-[7.5px] text-[var(--gold)] truncate">
+                          ⚔ {activeBar.name}
+                        </div>
+                        <div className="mono text-xs text-[#8b93b8]">
+                          {new Date(activeBar.startedAt).toLocaleDateString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                          })}{" "}
+                          ·{" "}
+                          {activeBar.exercises.reduce((a, ex) => a + ex.sets.length, 0)} series
+                        </div>
+                      </div>
+                      <span className="mono text-base font-bold text-[var(--cyan)] tabular-nums shrink-0 ml-2">
+                        {Math.round(activeBar.tonnage).toLocaleString("es")} kg
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="mono text-[#8b93b8]">Aún no hay sesiones. ¡Ve al gimnasio!</p>
+              )}
+
+              {/* Weekly Muscle Series Breakdown (3x2 grid for all 6 muscle groups) */}
+              <div className="border-t-2 border-[#2c3350] pt-2.5 space-y-2">
+                <div className="flex items-center justify-between text-[7px] pixel-title text-[#8b93b8]">
+                  <span>SERIES ESTA SEMANA ({weeklyStats.thisWeekWorkouts} ses.)</span>
+                  <span className="text-white tabular-nums">
+                    {Math.round(weeklyStats.thisWeekTonnage).toLocaleString("es")} kg
+                    {weeklyStats.prevWeekTonnage > 0
+                      ? ` / ${Math.round(weeklyStats.prevWeekTonnage).toLocaleString("es")} ant.`
+                      : ""}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => {
+                    const cnt = weeklyStats.setsByMuscle[m] ?? 0;
+                    return (
+                      <div
+                        key={m}
+                        className={`border px-1.5 py-1.5 ${
+                          cnt > 0
+                            ? "border-[var(--cyan)]/50 bg-[#10131f]"
+                            : "border-[#2c3350] bg-[#0c0e17] opacity-65"
+                        }`}
+                      >
+                        <div className="pixel-title text-[6px] text-[#8b93b8] truncate">
+                          {MUSCLE_LABEL[m]}
+                        </div>
+                        <div
+                          className={`mono text-base font-bold leading-none mt-0.5 tabular-nums ${
+                            cnt > 0 ? "text-[var(--cyan)]" : "text-[#636c8f]"
+                          }`}
+                        >
+                          {cnt}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </Panel>
+
+            {/* CALENDARIO DE CONSISTENCIA (12 SEMANAS / 84 DÍAS) */}
+            <ConsistencyCalendar history={history} />
           </motion.div>
         )}
-      </Panel>
+
+        {subTab === "records" && (
+          <motion.div
+            key="hist-records"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            {/* RÉCORDS (BUSCADOR + FILTRO POR MÚSCULO -> GRÁFICA) */}
+            <Panel className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="pixel-title text-[10px] text-[var(--gold)]">
+                  RÉCORDS ({totalRecordCount})
+                </h3>
+                {totalRecordCount > 0 && (
+                  <span className="pixel-title text-[6.5px] text-[#8b93b8]">
+                    TOCA PARA VER GRÁFICA
+                  </span>
+                )}
+              </div>
+
+              {totalRecordCount > 0 && (
+                <>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="pinput w-full pr-8 mono text-base"
+                      placeholder="🔍 Buscar ejercicio..."
+                      value={recordQuery}
+                      onChange={(e) => setRecordQuery(e.target.value)}
+                    />
+                    {recordQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setRecordQuery("")}
+                        className="pixel-title absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#8b93b8] hover:text-white px-1"
+                        aria-label="Limpiar búsqueda"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none touch-pan-x">
+                    {(["all", ...(Object.keys(MUSCLE_LABEL) as Muscle[])] as const).map((m) => (
+                      <motion.button
+                        key={m}
+                        type="button"
+                        whileTap={{ scale: 0.93 }}
+                        transition={APPLE_TAP}
+                        onClick={() => {
+                          setRecordMuscle(m);
+                          sfx.tick();
+                          haptic(4);
+                        }}
+                        className={`pixel-title shrink-0 border-2 px-2.5 py-1.5 text-[7px] transition-colors ${
+                          recordMuscle === m
+                            ? "border-[var(--gold)] bg-[var(--gold)] text-black font-bold shadow-[1px_1px_0_#000]"
+                            : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+                        }`}
+                      >
+                        {m === "all" ? "TODOS" : MUSCLE_LABEL[m]}
+                      </motion.button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                {sortedRecords.map(([id, b]) => {
+                  const ex = EX[id];
+                  return (
+                    <motion.button
+                      key={id}
+                      type="button"
+                      whileHover={{ y: -2, scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
+                      transition={APPLE_TAP}
+                      onClick={() => {
+                        setInspectExId(id);
+                        sfx.tap();
+                        haptic(6);
+                      }}
+                      className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 text-left cursor-pointer shadow-[2px_2px_0_#000] active:border-[var(--gold)]"
+                    >
+                      <div className="mono truncate text-sm text-white">{ex?.name ?? id}</div>
+                      {ex && (
+                        <div className="pixel-title text-[6px] text-[#8b93b8] mt-0.5">
+                          {MUSCLE_LABEL[ex.muscle]}
+                        </div>
+                      )}
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <span className="mono text-lg tabular-nums font-bold text-[var(--red)]">
+                          {b.e1rm.toFixed(1)} kg
+                        </span>
+                        <span className="pixel-title text-[6px] text-[var(--cyan)]">📈 VER</span>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+                {!totalRecordCount && (
+                  <p className="mono col-span-2 text-[#8b93b8]">
+                    Sin récords todavía. Completa tu primera serie en el gimnasio.
+                  </p>
+                )}
+                {totalRecordCount > 0 && sortedRecords.length === 0 && (
+                  <p className="mono col-span-2 py-3 text-center text-[#8b93b8]">
+                    Ningún récord coincide con tu búsqueda o músculo seleccionado.
+                  </p>
+                )}
+              </div>
+            </Panel>
+          </motion.div>
+        )}
+
+        {subTab === "history" && (
+          <motion.div
+            key="hist-log"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex items-center justify-between px-0.5">
+              <h3 className="pixel-title text-[10px] text-[var(--gold)]">HISTORIAL DE SESIONES</h3>
+              <span className="mono text-xs text-[#8b93b8] tabular-nums">
+                {history.length} {history.length === 1 ? "sesión" : "sesiones"}
+              </span>
+            </div>
+
+            {history.length === 0 ? (
+              <Panel className="p-4 text-center">
+                <p className="mono text-sm text-[#8b93b8]">
+                  Aún no has completado ningún entrenamiento. ¡Empieza una rutina para estrenar tu diario!
+                </p>
+              </Panel>
+            ) : (
+              <AnimatePresence initial={false}>
+                {history.map((h) => (
+                  <motion.div
+                    key={h.id}
+                    layout="position"
+                    transition={APPLE_SPRING}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                  >
+                    <Panel className="p-3">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={APPLE_TAP}
+                        className="flex w-full items-center justify-between text-left cursor-pointer gap-2"
+                        onClick={() => {
+                          setOpen(open === h.id ? null : h.id);
+                          setArmed(null);
+                          sfx.tick();
+                        }}
+                      >
+                        <div className="min-w-0">
+                          <div className="pixel-title text-[9px] truncate">
+                            {open === h.id ? "▼" : "▶"} {h.name}
+                          </div>
+                          <div className="mono text-sm text-[#8b93b8]">
+                            {new Date(h.startedAt).toLocaleString("es", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })}{" "}
+                            · {Math.max(1, Math.round((h.endedAt - h.startedAt) / 60000))} min
+                          </div>
+                        </div>
+                        <span className="mono text-base tabular-nums text-[var(--cyan)] shrink-0">
+                          {Math.round(h.tonnage).toLocaleString("es")} kg
+                        </span>
+                      </motion.button>
+                      <AnimatePresence initial={false}>
+                        {open === h.id && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={APPLE_SPRING}
+                            className="mt-2 space-y-1 border-t-2 border-[#2c3350] pt-2"
+                          >
+                            {h.exercises.map((e, k) => (
+                              <div key={k} className="mono flex justify-between gap-2 text-sm">
+                                <span className="truncate">{EX[e.exId]?.name ?? e.exId}</span>
+                                <span className="tabular-nums text-[#8b93b8] shrink-0">
+                                  {e.sets
+                                    .map((s) => {
+                                      const isBw = isBodyweight(EX[e.exId]);
+                                      return isBw
+                                        ? s.kg > 0
+                                          ? `+${s.kg}kg×${s.reps}`
+                                          : `PC×${s.reps}`
+                                        : `${s.kg}×${s.reps}`;
+                                    })
+                                    .join(" · ")}
+                                </span>
+                              </div>
+                            ))}
+                            <motion.button
+                              type="button"
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.92 }}
+                              transition={APPLE_TAP}
+                              className="pixel-title mt-2 w-full border-2 border-[var(--red)] py-2 text-[9px] text-[var(--red)] cursor-pointer"
+                              onClick={() => {
+                                if (armed === h.id) {
+                                  del(h.id);
+                                  sfx.whoosh();
+                                  setArmed(null);
+                                } else {
+                                  setArmed(h.id);
+                                  sfx.error();
+                                }
+                              }}
+                            >
+                              {armed === h.id ? "¿CONFIRMAR BORRADO?" : "ELIMINAR REGISTRO"}
+                            </motion.button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Panel>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            )}
+          </motion.div>
+        )}
+
+        {subTab === "backup" && (
+          <motion.div
+            key="hist-backup"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            {/* COPIA DE SEGURIDAD & EXPORTACIÓN */}
+            <Panel className="p-4 space-y-3">
+              <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">💾</span>
+                  <div>
+                    <h3 className="pixel-title text-[10px] text-[var(--gold)]">COPIA DE SEGURIDAD</h3>
+                    <span className="pixel-title text-[7px] text-[#8b93b8]">EXPORTA O RESTAURA TUS DATOS</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="border border-[#2c3350] bg-[#10131f] p-2">
+                  <div className="pixel-title text-[6px] text-[#8b93b8]">SESIONES</div>
+                  <div className="mono text-base font-bold text-white tabular-nums">{history.length}</div>
+                </div>
+                <div className="border border-[#2c3350] bg-[#10131f] p-2">
+                  <div className="pixel-title text-[6px] text-[#8b93b8]">RÉCORDS</div>
+                  <div className="mono text-base font-bold text-[var(--gold)] tabular-nums">{totalRecordCount}</div>
+                </div>
+                <div className="border border-[#2c3350] bg-[#10131f] p-2">
+                  <div className="pixel-title text-[6px] text-[#8b93b8]">RUTINAS PROPIAS</div>
+                  <div className="mono text-base font-bold text-[var(--cyan)] tabular-nums">{customRoutinesCount}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.94, y: 1 }}
+                  transition={APPLE_TAP}
+                  onClick={exportJson}
+                  className="pixel-title flex items-center justify-center gap-1.5 border-2 border-[var(--cyan)] bg-[#0d222d] py-2.5 text-[8px] text-[var(--cyan)] shadow-[2px_2px_0_#000] cursor-pointer"
+                >
+                  <span>📤 BACKUP (JSON)</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.94, y: 1 }}
+                  transition={APPLE_TAP}
+                  onClick={exportCsv}
+                  className="pixel-title flex items-center justify-center gap-1.5 border-2 border-[var(--gold)] bg-[#241e0a] py-2.5 text-[8px] text-[var(--gold)] shadow-[2px_2px_0_#000] cursor-pointer"
+                >
+                  <span>📊 EXCEL (CSV)</span>
+                </motion.button>
+              </div>
+
+              <div>
+                <motion.label
+                  whileHover={{ scale: 1.015, y: -1 }}
+                  whileTap={{ scale: 0.95, y: 1 }}
+                  transition={APPLE_TAP}
+                  className="pixel-title block w-full cursor-pointer border-2 border-[#4a5280] bg-[#1d2236] py-3 text-center text-[8px] text-white shadow-[2px_2px_0_#000]"
+                >
+                  <span>📥 RESTAURAR COPIA (JSON)</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleImport}
+                  />
+                </motion.label>
+              </div>
+
+              {importStatus && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={APPLE_BOUNCE}
+                  className="pixel-title text-center text-[8px] text-[var(--green)]"
+                >
+                  {importStatus}
+                </motion.div>
+              )}
+
+              <p className="mono text-xs text-[#8b93b8] leading-relaxed">
+                El archivo JSON guarda tu perfil completo (héroe, inventario, mascotas, medallas, rutinas, récords, historial y preferencias) para cambiar de móvil o recuperar tus datos al instante.
+              </p>
+            </Panel>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL DE GRÁFICA DE EVOLUCIÓN POR EJERCICIO */}
       <AnimatePresence>

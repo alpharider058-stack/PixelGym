@@ -18,16 +18,16 @@ export interface MuscleHeatmapData {
   recommendation: string;
 }
 
-const MUSCLE_LIST: Muscle[] = ["chest", "back", "shoulders", "arms", "legs"];
+const MUSCLE_LIST: Muscle[] = ["chest", "back", "shoulders", "arms", "legs", "core"];
 
 /**
  * Calculates recovery status and 7-day training volume for all muscle groups.
  */
 export function calculateMuscleHeatmap(
   history: WorkoutLog[],
-  bodyweight: number = 75
+  bodyweight: number = 75,
+  now: number = Date.now()
 ): Record<Muscle, MuscleHeatmapData> {
-  const now = Date.now();
   const sevenDaysAgo = now - 7 * 864e5;
 
   const result = {} as Record<Muscle, MuscleHeatmapData>;

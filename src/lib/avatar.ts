@@ -207,8 +207,9 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   const bkP = p.back ? 0.5 : 0;
   const arP = p.arms ? 0.6 : 0;
   const lgP = p.legs ? 0.5 : 0;
+  const crP = p.core ? 0.5 : 0;
 
-  const sh = tiers.shoulders + shP, ch = tiers.chest + chP, bk = tiers.back + bkP, ar = tiers.arms + arP, lg = tiers.legs + lgP;
+  const sh = tiers.shoulders + shP, ch = tiers.chest + chP, bk = tiers.back + bkP, ar = tiers.arms + arP, lg = tiers.legs + lgP, cr = (tiers.core ?? 0) + crP;
   const shW = 7 + ch * 0.8 + bk * 0.9 + sh * 0.4 + (breath > 0 ? 0.4 : 0) + flex * 1;
   const waistW = 5.5 + Math.max(0, ch - 2) * 0.3;
   const armW = 3 + ar * 0.8;
@@ -299,10 +300,11 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   // lats shading
   if (bk >= 1) for (const s of [-1, 1]) r(cx + s * (shW - 1) - (s > 0 ? 1 : 0), topY + 5, 1, 6 + bk, SHADE);
   // abs
-  const absTier = Math.max(ch, bk, lg);
-  if (absTier >= 2) {
-    for (let k = 0; k < 3; k++) { r(cx - 3, topY + 11 + k * 3.5, 2, 1, SHADE); r(cx + 1, topY + 11 + k * 3.5, 2, 1, SHADE); }
-    r(cx - 0.5, topY + 10, 1, 11, SHADE);
+  const absTier = Math.max(cr, ch, bk, lg);
+  if (absTier >= 2 || p.core) {
+    const absCol = p.core ? VEIN : SHADE;
+    for (let k = 0; k < 3; k++) { r(cx - 3, topY + 11 + k * 3.5, 2, 1, absCol); r(cx + 1, topY + 11 + k * 3.5, 2, 1, absCol); }
+    r(cx - 0.5, topY + 10, 1, 11, absCol);
   }
   // arms definition / vascularity
   for (const s of [-1, 1]) {

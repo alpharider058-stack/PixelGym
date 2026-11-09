@@ -1,6 +1,6 @@
 import { buildExercises } from "./exercises";
 
-export type Muscle = "chest" | "back" | "shoulders" | "arms" | "legs";
+export type Muscle = "chest" | "back" | "shoulders" | "arms" | "legs" | "core";
 export type Group = "push" | "pull" | "legs";
 
 export interface Exercise {
@@ -11,17 +11,18 @@ export interface Exercise {
   defKg: number;
   defReps: number;
   sub?: string;
+  bw?: boolean;
 }
 
 export const EXERCISES: Exercise[] = [
   { id: "bench", name: "Press Banca", muscle: "chest", group: "push", defKg: 60, defReps: 8 },
   { id: "incline", name: "Press Inclinado Manc.", muscle: "chest", group: "push", defKg: 22.5, defReps: 10 },
-  { id: "dips", name: "Fondos", muscle: "chest", group: "push", defKg: 0, defReps: 12 },
+  { id: "dips", name: "Fondos", muscle: "chest", group: "push", defKg: 0, defReps: 12, bw: true },
   { id: "ohp", name: "Press Militar", muscle: "shoulders", group: "push", defKg: 40, defReps: 8 },
   { id: "lateral", name: "Elev. Laterales", muscle: "shoulders", group: "push", defKg: 10, defReps: 15 },
   { id: "pushdown", name: "Extensión Tríceps", muscle: "arms", group: "push", defKg: 25, defReps: 12 },
   { id: "deadlift", name: "Peso Muerto", muscle: "back", group: "pull", defKg: 100, defReps: 5 },
-  { id: "pullup", name: "Dominadas", muscle: "back", group: "pull", defKg: 0, defReps: 8 },
+  { id: "pullup", name: "Dominadas", muscle: "back", group: "pull", defKg: 0, defReps: 8, bw: true },
   { id: "row", name: "Remo con Barra", muscle: "back", group: "pull", defKg: 60, defReps: 10 },
   { id: "pulldown", name: "Jalón al Pecho", muscle: "back", group: "pull", defKg: 50, defReps: 10 },
   { id: "facepull", name: "Face Pull", muscle: "shoulders", group: "pull", defKg: 20, defReps: 15 },
@@ -66,6 +67,7 @@ export const MUSCLE_LABEL: Record<Muscle, string> = {
   shoulders: "HOMBROS",
   arms: "BRAZOS",
   legs: "PIERNAS",
+  core: "ABDOMEN",
 };
 
 /** Volume (kg) thresholds for hypertrophy tiers 0..4 */
@@ -87,8 +89,19 @@ export const e1rm = (kg: number, reps: number) => (reps <= 0 ? 0 : kg * (1 + rep
 
 export function isBodyweight(ex?: Exercise): boolean {
   if (!ex) return false;
-  if (ex.defKg === 0) return true;
+  if (typeof ex.bw === "boolean") return ex.bw;
   const s = (ex.name + " " + (ex.sub ?? "")).toLowerCase();
+  if (
+    s.includes("en maquina") ||
+    s.includes("en máquina") ||
+    s.includes("en polea") ||
+    s.includes("con banda") ||
+    s.includes("con barra") ||
+    s.includes("con mancuerna") ||
+    s.includes("con kettlebell")
+  ) {
+    return s.includes("dominada");
+  }
   return (
     s.includes("peso corporal") ||
     s.includes("flexion") ||
@@ -98,9 +111,17 @@ export function isBodyweight(ex?: Exercise): boolean {
     s.includes("australiana") ||
     s.includes("muscle up") ||
     s.includes("hiperextension") ||
-    s.includes("plancha") ||
-    s.includes("pino")
+    s.includes("plancha")
   );
+}
+
+/** Local YYYY-MM-DD key so user streaks, calendar and weekly comparison align with device day */
+export function localDayKey(t: number = Date.now()): string {
+  const d = new Date(t);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export const weekOfUtc = (t: number = Date.now()) => {
@@ -122,6 +143,13 @@ export const getNextMondayUtcTimestamp = (t: number = Date.now()) => {
   d.setUTCDate(d.getUTCDate() + diffToMonday);
   d.setUTCHours(0, 0, 0, 0);
   return d.getTime();
+};
+
+/** Exact elapsed hours [0..168] since Monday 00:00 UTC of the current league/boss week */
+export const getHoursIntoUtcWeek = (now: number = Date.now()): number => {
+  const nextMon = getNextMondayUtcTimestamp(now);
+  const weekStart = nextMon - 7 * 864e5;
+  return Math.max(0, Math.min(168, (now - weekStart) / 36e5));
 };
 
 export const getTimeUntilWeeklyReset = (now: number = Date.now()): string => {
@@ -217,6 +245,85 @@ export const LEAGUES = [
   { name: "TITAN PIXEL", min: 32000, color: "#ff3f6c" },
 ];
 export const leagueOf = (weeklyExp: number) => [...LEAGUES].reverse().find((l) => weeklyExp >= l.min)!;
+
+const RIVAL_NAMES = [
+  "BRUTUS", "PIXELYN", "IRONMAX", "LA_ROCA", "SQUATZILLA", "DELTOIDE", "KAIBA", "CHUNLIFT", "MEGABICEP", "VALKYRA",
+  "TOR_8BIT", "BENCHZERO", "GOKULIFT", "ARNOLDINO", "SAMUS_FIT", "LINKGAINS", "ZELDAMUSCLE", "MAXPOWER", "TRAPKING", "NEONQUEEN",
+];
+
+function rivalRng(seed: number) {
+  return () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+
+export interface SimulatedRival {
+  id: string;
+  name: string;
+  weekly: number;
+  tonnage: number;
+  streak: number;
+  rel: number;
+  tiers: Record<Muscle, number>;
+  equipped: Equipped;
+  level: number;
+  title: string;
+}
+
+export function getSimulatedRivals(now: number = Date.now()): SimulatedRival[] {
+  const hours = getHoursIntoUtcWeek(now);
+  const tick = Math.floor(now / 60000);
+  const weekSeed = weekOfUtc(now).split("").reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const muscles: Muscle[] = ["chest", "back", "shoulders", "arms", "legs", "core"];
+
+  return RIVAL_NAMES.map((name, i) => {
+    const r = rivalRng(i * 7919 + 13 + weekSeed);
+    const power = Math.pow(r(), 1.6);
+    const lvl = 1 + Math.floor(power * 22);
+    const tiers = Object.fromEntries(
+      muscles.map((m) => [m, Math.min(4, Math.max(0, Math.round(power * 4 + (r() - 0.5) * 1.6)))])
+    ) as Record<Muscle, number>;
+    const pick = (slot: Slot) => {
+      const opts = ITEMS.filter((it) => it.slot === slot && it.minLevel <= lvl);
+      return opts[Math.floor(r() * opts.length)]?.id ?? DEFAULT_EQUIP[slot];
+    };
+    const equipped: Equipped = {
+      shirt: pick("shirt"),
+      belt: pick("belt"),
+      wrist: pick("wrist"),
+      hair: pick("hair"),
+      aura: pick("aura"),
+      weapon: pick("weapon"),
+      pet: pick("pet"),
+      bg: pick("bg"),
+    };
+    const jitter = rivalRng(i * 31 + tick)();
+    return {
+      id: "r" + i,
+      name,
+      title: titleOf(lvl),
+      weekly: Math.round((power * 16000 + 180) * (hours / 168 + 0.08) + jitter * 35),
+      tonnage: Math.round(power * 900000 + r() * 30000),
+      streak: Math.round(power * 60 * r() + 1),
+      rel: +(0.6 + power * 1.9).toFixed(2),
+      tiers,
+      equipped,
+      level: lvl,
+    };
+  });
+}
+
+export function getWeeklyRankForExp(weeklyExp: number, weekKey?: string): number {
+  let refNow = Date.now();
+  if (weekKey) {
+    const m = weekKey.match(/^(\d{4})-W(\d{2})-(\d{2})$/);
+    if (m) {
+      const mondayMs = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0);
+      refNow = mondayMs + 7 * 864e5 - 60000; // Sunday 23:59:00 UTC of that week
+    }
+  }
+  const rivals = getSimulatedRivals(refNow);
+  const ahead = rivals.filter((r) => r.weekly > weeklyExp).length;
+  return ahead + 1;
+}
 
 export const titleOf = (lvl: number) =>
   lvl >= 20 ? "Semidiós del Hierro" : lvl >= 12 ? "Titán" : lvl >= 8 ? "Gladiador" : lvl >= 4 ? "Guerrero" : "Novato";

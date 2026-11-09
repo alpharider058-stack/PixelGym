@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
@@ -23,10 +23,24 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
 
   const [selectedMuscle, setSelectedMuscle] = useState<Muscle>("chest");
   const [viewMode, setViewMode] = useState<"both" | "front" | "back">("both");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const refresh = () => setNow(Date.now());
+    const id = setInterval(refresh, 60000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
 
   const heatmap = useMemo(
-    () => calculateMuscleHeatmap(history, bodyweight),
-    [history, bodyweight]
+    () => calculateMuscleHeatmap(history, bodyweight, now),
+    [history, bodyweight, now]
   );
 
   const counts = useMemo(() => {
@@ -139,7 +153,7 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
 
       {/* Muscle selector chips */}
       <div className="flex gap-1 overflow-x-auto pb-1 px-0.5 scrollbar-none touch-pan-x">
-        {(["chest", "back", "shoulders", "arms", "legs"] as Muscle[]).map((m) => {
+        {(["chest", "back", "shoulders", "arms", "legs", "core"] as Muscle[]).map((m) => {
           const item = heatmap[m];
           const isSel = selectedMuscle === m;
           return (
@@ -189,6 +203,8 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
                   ? "⚡"
                   : cur.muscle === "arms"
                   ? "💪"
+                  : cur.muscle === "core"
+                  ? "🔥"
                   : "🦵"}
               </span>
               <div>
@@ -262,11 +278,13 @@ function FrontSilhouette({
   const shCol = heatmap.shoulders.color;
   const arCol = heatmap.arms.color;
   const lgCol = heatmap.legs.color;
+  const crCol = heatmap.core.color;
 
   const isSelSh = selected === "shoulders";
   const isSelCh = selected === "chest";
   const isSelAr = selected === "arms";
   const isSelLg = selected === "legs";
+  const isSelCr = selected === "core";
 
   return (
     <svg
@@ -301,7 +319,7 @@ function FrontSilhouette({
       {/* ================= SHOULDERS (Deltoides Anteriores y Laterales) ================= */}
       <g
         onClick={() => onSelect("shoulders")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Left Boulder Deltoid */}
@@ -326,7 +344,7 @@ function FrontSilhouette({
       {/* ================= CHEST (Pectoral Mayor y Menor) ================= */}
       <g
         onClick={() => onSelect("chest")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Left Pectoral plate */}
@@ -354,35 +372,39 @@ function FrontSilhouette({
       </g>
 
       {/* ================= CORE / SIX-PACK ABS & SERRATUS ================= */}
-      <g>
+      <g
+        onClick={() => onSelect("core")}
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
+        style={{ cursor: "pointer" }}
+      >
         {/* Torso abdominal wall */}
         <polygon
           points="22,31 42,31 39,48 25,48"
-          fill="#1c2336"
-          stroke="#000000"
-          strokeWidth="1"
+          fill={crCol}
+          stroke={isSelCr ? "#ffffff" : "#000000"}
+          strokeWidth={isSelCr ? "1.6" : "1"}
         />
         {/* Linea alba (vertical midline) */}
-        <line x1="32" y1="31" x2="32" y2="47" stroke="#0b0e18" strokeWidth="1.2" />
+        <line x1="32" y1="31" x2="32" y2="47" stroke="#000000" strokeWidth="1.2" opacity="0.6" />
         {/* Tendinous intersections (horizontal 6-pack cuts) */}
-        <line x1="25" y1="36" x2="39" y2="36" stroke="#0b0e18" strokeWidth="1" />
-        <line x1="26" y1="41" x2="38" y2="41" stroke="#0b0e18" strokeWidth="1" />
+        <line x1="25" y1="36" x2="39" y2="36" stroke="#000000" strokeWidth="1" opacity="0.55" />
+        <line x1="26" y1="41" x2="38" y2="41" stroke="#000000" strokeWidth="1" opacity="0.55" />
         {/* Abs highlights */}
-        <rect x="26" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
-        <rect x="34" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
-        <rect x="26" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
-        <rect x="34" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.18" />
+        <rect x="26" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.28" />
+        <rect x="34" y="32" width="4" height="2.5" fill="#ffffff" opacity="0.28" />
+        <rect x="26" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.28" />
+        <rect x="34" y="37" width="4" height="2.5" fill="#ffffff" opacity="0.28" />
         {/* Serratus anterior & Adonis belt */}
-        <line x1="21" y1="34" x2="24" y2="37" stroke="#0b0e18" strokeWidth="0.8" />
-        <line x1="43" y1="34" x2="40" y2="37" stroke="#0b0e18" strokeWidth="0.8" />
-        <line x1="27" y1="45" x2="32" y2="48" stroke="#0b0e18" strokeWidth="1" />
-        <line x1="37" y1="45" x2="32" y2="48" stroke="#0b0e18" strokeWidth="1" />
+        <line x1="21" y1="34" x2="24" y2="37" stroke="#000000" strokeWidth="0.8" opacity="0.55" />
+        <line x1="43" y1="34" x2="40" y2="37" stroke="#000000" strokeWidth="0.8" opacity="0.55" />
+        <line x1="27" y1="45" x2="32" y2="48" stroke="#000000" strokeWidth="1" opacity="0.55" />
+        <line x1="37" y1="45" x2="32" y2="48" stroke="#000000" strokeWidth="1" opacity="0.55" />
       </g>
 
       {/* ================= ARMS (Bíceps y Antebrazos) ================= */}
       <g
         onClick={() => onSelect("arms")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Left Biceps peak */}
@@ -431,7 +453,7 @@ function FrontSilhouette({
       {/* ================= LEGS (Cuádriceps, Rodillas, Gemelos) ================= */}
       <g
         onClick={() => onSelect("legs")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Left Thigh (Cuádriceps sweep) */}
@@ -525,7 +547,7 @@ function BackSilhouette({
       {/* ================= REAR SHOULDERS (Deltoides Posteriores) ================= */}
       <g
         onClick={() => onSelect("shoulders")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         <polygon
@@ -547,7 +569,7 @@ function BackSilhouette({
       {/* ================= BACK (Trapecio y Dorsales "Lats" en V) ================= */}
       <g
         onClick={() => onSelect("back")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Upper Diamond Trapezius */}
@@ -585,7 +607,7 @@ function BackSilhouette({
       {/* ================= ARMS BACK (Tríceps y Antebrazos) ================= */}
       <g
         onClick={() => onSelect("arms")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Left Triceps Horseshoe */}
@@ -631,7 +653,7 @@ function BackSilhouette({
       {/* ================= LEGS BACK (Glúteos, Femorales y Gemelos) ================= */}
       <g
         onClick={() => onSelect("legs")}
-        className="transition-transform active:scale-95"
+        className="transition-transform active:scale-95 [transform-box:fill-box] origin-center"
         style={{ cursor: "pointer" }}
       >
         {/* Powerful Gluteus Maximus (Left & Right) */}

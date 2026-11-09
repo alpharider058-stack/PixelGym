@@ -12,6 +12,23 @@ function isAuthorized(req: Request): boolean {
   return timingSafeEqual(Buffer.from(header), Buffer.from(expected));
 }
 
+function localDateForTz(tz?: string, nowMs: number = Date.now()): string {
+  const candidates = [tz, "Europe/Madrid", "UTC"].filter(Boolean) as string[];
+  for (const timeZone of candidates) {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(nowMs));
+    } catch {
+      // try next timezone
+    }
+  }
+  return new Date(nowMs).toISOString().slice(0, 10);
+}
+
 export async function GET(req: Request) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -19,8 +36,8 @@ export async function GET(req: Request) {
 
   try {
     const subs = await listAllSubscribers();
-    const todayUtc = new Date().toISOString().slice(0, 10);
-    const todayMidnightMs = Date.parse(todayUtc);
+    const nowMs = Date.now();
+    const todayUtc = new Date(nowMs).toISOString().slice(0, 10);
 
     let sentDaily = 0;
     let sentStreak = 0;
@@ -28,17 +45,19 @@ export async function GET(req: Request) {
     let expiredRemoved = 0;
 
     for (const sub of subs) {
-      if (sub.lastDailySentDate === todayUtc) continue;
+      const todayLocal = localDateForTz(sub.timeZone, nowMs);
+      if (sub.lastDailySentDate === todayLocal) continue;
 
       let diffDays = 1;
       if (sub.lastDay) {
-        const lastMs = Date.parse(sub.lastDay);
-        if (!Number.isNaN(lastMs)) {
-          diffDays = Math.round((todayMidnightMs - lastMs) / 86400000);
+        const todayNoonMs = Date.parse(`${todayLocal}T12:00:00Z`);
+        const lastNoonMs = Date.parse(`${sub.lastDay}T12:00:00Z`);
+        if (!Number.isNaN(todayNoonMs) && !Number.isNaN(lastNoonMs)) {
+          diffDays = Math.round((todayNoonMs - lastNoonMs) / 86400000);
         }
       }
 
-      // Already trained today (UTC dayKey matching Zustand store)
+      // Already trained today in subscriber's local timezone
       if (diffDays <= 0) {
         skippedTrained++;
         continue;
@@ -48,13 +67,14 @@ export async function GET(req: Request) {
       const streakActive = sub.streak > 0 && diffDays < 3;
       const streakAtRisk = streakActive && diffDays === 2 && sub.prefs.streakRisk;
       const shouldSendDaily = sub.prefs.dailyReminder;
+      const streakDaysText = sub.streak === 1 ? "1 día" : `${sub.streak} días`;
 
       if (!streakAtRisk && !shouldSendDaily) continue;
 
       const payload = streakAtRisk
         ? {
             title: `PixelGym RPG · 🔥 ¡Racha de ${sub.streak}D en riesgo!`,
-            body: `¡Último aviso, ${hero}! Entrena antes de medianoche (00:00 UTC) o perderás tu racha de ${sub.streak} días.`,
+            body: `¡Último aviso, ${hero}! Entrena antes de medianoche o perderás tu racha de ${streakDaysText}.`,
             tag: "pixelgym-streak-risk",
             renotify: true,
             url: "/",
@@ -64,7 +84,7 @@ export async function GET(req: Request) {
         : {
             title: "PixelGym RPG · ⚔️ Recordatorio de Entreno",
             body: streakActive
-              ? `¡Hora de entrenar, ${hero}! Llevas ${sub.streak} días seguidos 🔥 Suma EXP y golpea al Raid Boss.`
+              ? `¡Hora de entrenar, ${hero}! Llevas ${streakDaysText} seguidos 🔥 Suma EXP y golpea al Raid Boss.`
               : `¡Hoy toca hierro, ${hero}! Completa una sesión para encender tu racha y ganar EXP.`,
             tag: "pixelgym-daily",
             renotify: false,
@@ -80,7 +100,7 @@ export async function GET(req: Request) {
       if (res.ok) {
         if (streakAtRisk) sentStreak++;
         else sentDaily++;
-        sub.lastDailySentDate = todayUtc;
+        sub.lastDailySentDate = todayLocal;
         sub.updatedAt = Date.now();
         await saveSubscriber(sub);
       }

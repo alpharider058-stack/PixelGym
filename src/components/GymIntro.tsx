@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useGame } from "@/lib/store";
 import { useMyAvatar, useStats } from "@/lib/hooks";
-import { haptic, sfx } from "@/lib/fx";
+import { haptic, setSoundEnabled, sfx } from "@/lib/fx";
 import Avatar from "./Avatar";
 import { SPRING } from "./ui";
 
@@ -43,6 +43,15 @@ export default function GymIntro({ onMorph, onDone }: Props) {
   onDoneRef.current = onDone;
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("pixelgym-rpg-v1");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { state?: { sound?: boolean } };
+        if (typeof parsed?.state?.sound === "boolean") {
+          setSoundEnabled(parsed.state.sound);
+        }
+      }
+    } catch {}
     // 1. 0.00s – 0.25s: CRT Turn-On + synthesized short beep
     sfx.crtTurnOn();
 
@@ -251,7 +260,7 @@ export default function GymIntro({ onMorph, onDone }: Props) {
                       style={{ textShadow: "2px 2px 0 #000, 0 0 12px #ff3f6c" }}
                     >
                       {streak > 0
-                        ? `🔥 RACHA: ${streak} DÍAS`
+                        ? streak === 1 ? "🔥 RACHA: 1 DÍA" : `🔥 RACHA: ${streak} DÍAS`
                         : `⚡ LVL ${stats.level} - LISTO`}
                     </span>
                   </motion.div>

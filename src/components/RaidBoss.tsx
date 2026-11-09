@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
-import { Quest, RaidBoss, getCombatBonus, getWeeklyBoss, getTimeUntilWeeklyReset, weekOfUtc } from "@/lib/data";
+import { Quest, RaidBoss, getCombatBonus, getHoursIntoUtcWeek, getWeeklyBoss, getTimeUntilWeeklyReset, weekOfUtc } from "@/lib/data";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { Bar, Panel, PixelButton, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import BossPixelCanvas from "./BossPixelCanvas";
@@ -29,9 +29,9 @@ export default function RaidBossView() {
   const currentWeek = weekOfUtc();
   const boss = getWeeklyBoss(currentWeek);
 
-  // Simulated live community damage based on time through week + player contribution
-  const hoursIntoWeek = ((Date.now() / 36e5) % 168);
-  const communityDrift = Math.round((hoursIntoWeek / 168) * (boss.totalHp * 0.65));
+  // Simulated live community damage based on elapsed hours since Monday 00:00 UTC + player contribution
+  const hoursIntoWeek = getHoursIntoUtcWeek();
+  const communityDrift = Math.round((hoursIntoWeek / 168) * (boss.totalHp * 0.85));
   const totalDamage = Math.min(boss.totalHp, communityDrift + bossDmgDealt);
   const bossHpRemaining = Math.max(0, boss.totalHp - totalDamage);
   const bossDefeated = bossHpRemaining === 0;
