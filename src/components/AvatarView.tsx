@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
@@ -8,10 +8,19 @@ import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fxAt, haptic, sfx } from "@/lib/fx";
 import Avatar from "./Avatar";
-import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE, APPLE_FLUID } from "./ui";
+import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import { Sheet } from "./GymView";
 import MuscleHeatmap from "./MuscleHeatmap";
 import PushPanel from "./PushPanel";
+
+type AvatarTab = "hero" | "body" | "awards" | "settings";
+
+const AVATAR_TABS: { id: AvatarTab; label: string; icon: string }[] = [
+  { id: "hero", label: "HÉROE", icon: "☻" },
+  { id: "body", label: "CUERPO", icon: "🧬" },
+  { id: "awards", label: "LOGROS", icon: "🏆" },
+  { id: "settings", label: "AJUSTES", icon: "⚙" },
+];
 
 const SLOTS: { id: Slot; label: string }[] = [
   { id: "shirt", label: "ROPA" },
@@ -25,9 +34,28 @@ const SLOTS: { id: Slot; label: string }[] = [
 ];
 
 export default function AvatarView() {
+  const [subTab, setSubTab] = useState<AvatarTab>("hero");
+  const [subDir, setSubDir] = useState(1);
+
   const cfg = useMyAvatar();
   const st = useStats();
-  const { name, gold, muscleVol, sound, trophies, bodyweight, activeTitle, equipped } = useGame(
+  const {
+    name,
+    gold,
+    muscleVol,
+    sound,
+    trophies,
+    bodyweight,
+    activeTitle,
+    equipped,
+    streak,
+    maxStreak,
+    history,
+    owned,
+    bossKills,
+    totalPrs,
+    claimedAchievements,
+  } = useGame(
     useShallow((s) => ({
       name: s.name,
       gold: s.gold,
@@ -37,122 +65,477 @@ export default function AvatarView() {
       bodyweight: s.bodyweight ?? 75,
       activeTitle: s.activeTitle,
       equipped: s.equipped,
+      streak: s.streak,
+      maxStreak: s.maxStreak || 0,
+      history: s.history || [],
+      owned: s.owned || [],
+      bossKills: s.bossKills || 0,
+      totalPrs: s.totalPrs || 0,
+      claimedAchievements: s.claimedAchievements || [],
     }))
   );
-  const setName = useGame((s) => s.setName);
-  const setBodyweight = useGame((s) => s.setBodyweight);
   const toggleSound = useGame((s) => s.toggleSound);
   const prev = st.level > 1 ? expForLevel(st.level - 1) : 0;
   const next = expForLevel(st.level);
   const combat = getCombatBonus(equipped);
   const displayTitle = (activeTitle || titleOf(st.level)).toUpperCase();
 
+  const claimableCount = useMemo(() => {
+    const snap = { tonnage: st.tonnage, streak, maxStreak, history, owned, bossKills, totalPrs };
+    let ready = 0;
+    for (const def of ACHIEVEMENTS) {
+      if (!claimedAchievements.includes(def.id) && def.eval(snap).unlocked) {
+        ready++;
+      }
+    }
+    return ready;
+  }, [st.tonnage, streak, maxStreak, history, owned, bossKills, totalPrs, claimedAchievements]);
+
+  const activeIdx = Math.max(0, AVATAR_TABS.findIndex((t) => t.id === subTab));
+
+  const goSub = (nextTab: AvatarTab) => {
+    if (nextTab === subTab) return;
+    const prevIdx = AVATAR_TABS.findIndex((t) => t.id === subTab);
+    const nextIdx = AVATAR_TABS.findIndex((t) => t.id === nextTab);
+    setSubDir(nextIdx >= prevIdx ? 1 : -1);
+    setSubTab(nextTab);
+    sfx.tick();
+    haptic(6);
+  };
+
   return (
     <div className="flex flex-col gap-5">
-      <Panel className="flex flex-col items-center gap-3 p-4">
-        <div className="flex w-full items-center justify-between">
-          <input className="pixel-title w-40 bg-transparent text-xs text-white outline-none" defaultValue={name} onBlur={(e) => setName(e.target.value)} maxLength={12} aria-label="Nombre" />
-          <motion.button
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.9 }}
-            transition={APPLE_TAP}
-            className="pixel-title text-[9px] text-[#8b93b8] hover:text-[var(--gold)] transition-colors border border-transparent hover:border-[#2c3350] px-1.5 py-0.5"
-            onClick={toggleSound}
+      {/* Sub-navegación compacta y tamaño fijo para organizar Avatar sin sobrecargar */}
+      <div className="border-2 border-[#2c3350] bg-[#10131f] p-1 shadow-[3px_3px_0_#000]">
+        <div className="relative grid grid-cols-4">
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/4"
+            initial={false}
+            animate={{ x: `${activeIdx * 100}%` }}
+            transition={APPLE_SPRING}
           >
-            {sound ? "♪ ON" : "♪ OFF"}
-          </motion.button>
+            <div className="h-full w-full bg-[var(--gold)] border-2 border-black shadow-[2px_2px_0_#000]" />
+          </motion.div>
+
+          {AVATAR_TABS.map((t) => {
+            const active = subTab === t.id;
+            return (
+              <motion.button
+                key={t.id}
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                transition={APPLE_TAP}
+                onClick={() => goSub(t.id)}
+                className={`relative z-10 flex flex-col items-center justify-center gap-1 py-2 transition-colors cursor-pointer ${
+                  active ? "text-black" : "text-[#8b93b8]"
+                }`}
+                aria-label={t.label}
+              >
+                <span className="relative text-sm leading-none">
+                  {t.icon}
+                  {t.id === "awards" && claimableCount > 0 && (
+                    <span className="absolute -right-2.5 -top-1 flex h-3.5 min-w-3.5 items-center justify-center border border-black bg-[#ff3f6c] px-0.5 pixel-title text-[6px] font-bold text-white animate-pulse">
+                      {claimableCount}
+                    </span>
+                  )}
+                </span>
+                <span className="pixel-title text-[7px] font-bold leading-none">
+                  {t.label}
+                </span>
+              </motion.button>
+            );
+          })}
         </div>
-        <motion.div
-          whileHover={{ scale: 1.02 }}
+      </div>
+
+      <AnimatePresence mode="wait" initial={false}>
+        {subTab === "hero" && (
+          <motion.div
+            key="sub-hero"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            <Panel className="flex flex-col items-center gap-3 p-4">
+              <div className="flex w-full items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="pixel-title text-xs text-white font-bold truncate">{name}</span>
+                  <span className="pixel-title text-[7.5px] text-[var(--gold)] border border-[#2c3350] bg-[#10131f] px-1.5 py-0.5 shrink-0">
+                    LV {st.level}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.92 }}
+                    transition={APPLE_TAP}
+                    className="pixel-title text-[8.5px] text-[#8b93b8] hover:text-[var(--gold)] transition-colors border border-[#2c3350] bg-[#10131f] px-2 py-1"
+                    onClick={toggleSound}
+                    aria-label="Alternar sonido"
+                  >
+                    {sound ? "♪ ON" : "♪ OFF"}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.92 }}
+                    transition={APPLE_TAP}
+                    className="pixel-title text-[9px] text-[#8b93b8] hover:text-[var(--cyan)] transition-colors border border-[#2c3350] bg-[#10131f] px-2 py-1"
+                    onClick={() => goSub("settings")}
+                    aria-label="Ir a ajustes y notificaciones"
+                    title="Editar perfil, peso y notificaciones"
+                  >
+                    ⚙
+                  </motion.button>
+                </div>
+              </div>
+
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={APPLE_TAP}
+                className="frame9 cursor-pointer"
+              >
+                <Avatar cfg={cfg} scale={3} interactive />
+              </motion.div>
+              <div className="pixel-title text-[8.5px] text-[#8b93b8]">TOCA PARA FLEXIONAR</div>
+
+              <div className="w-full">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="pixel-title text-[9px] text-[var(--gold)] truncate">{displayTitle}</span>
+                  <span className="mono text-sm tabular-nums shrink-0">{st.exp - prev}/{next - prev}</span>
+                </div>
+                <Bar value={st.exp - prev} max={next - prev} color="var(--green)" h={11} />
+              </div>
+
+              {(combat.weapon || combat.pet) && (
+                <div className="w-full border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5 flex items-center justify-between text-[7px] pixel-title">
+                  <span className="text-[#cbd5e1] truncate">
+                    {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
+                    {combat.weapon && combat.pet ? " · " : ""}
+                    {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
+                  </span>
+                  <span className="text-[var(--green)] font-bold shrink-0 ml-2">+{combat.bossDmgPct}% BOSS</span>
+                </div>
+              )}
+
+              <div className="grid w-full grid-cols-4 gap-2 text-center">
+                {[["STR", st.str, "#ff3f6c"], ["HYP", st.hyp, "#c06cff"], ["STA", st.sta, "#3df2ff"], ["ORO", gold, "#ffe14d"]].map(([k, v, c]) => (
+                  <motion.div
+                    key={k as string}
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={APPLE_TAP}
+                    className="border-2 border-[#2c3350] bg-[#10131f] p-2 cursor-pointer shadow-[2px_2px_0_#000]"
+                  >
+                    <div className="pixel-title text-[8px]" style={{ color: c as string }}>{k}</div>
+                    <div className="mono text-lg tabular-nums">{v}</div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="flex w-full items-center justify-between border-t border-[#2c3350] pt-2.5 text-xs">
+                <span className="mono text-[#8b93b8]">
+                  TONELAJE: <b className="text-white tabular-nums">{Math.round(st.tonnage).toLocaleString("es")} kg</b>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goSub("settings")}
+                  className="pixel-title border border-[#2c3350] bg-[#10131f] px-2 py-1 text-[7px] text-[#cbd5e1] hover:border-[var(--gold)] cursor-pointer"
+                >
+                  ⚖️ {bodyweight} KG ✎
+                </button>
+              </div>
+            </Panel>
+
+            <Armory level={st.level} />
+          </motion.div>
+        )}
+
+        {subTab === "body" && (
+          <motion.div
+            key="sub-body"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            {/* MAPA DE CALOR MUSCULAR ANATÓMICO (RECUPERACIÓN & FATIGA 7 DÍAS) */}
+            <Panel className="p-4">
+              <MuscleHeatmap />
+            </Panel>
+
+            {/* HIPERTROFIA MUSCULAR HISTÓRICA */}
+            <Panel className="space-y-2.5 p-4">
+              <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+                <div>
+                  <h3 className="pixel-title text-[10px] text-[var(--gold)]">HIPERTROFIA</h3>
+                  <span className="pixel-title text-[7px] text-[#8b93b8]">VOLUMEN ACUMULADO POR MÚSCULO</span>
+                </div>
+                <span className="mono text-xs tabular-nums text-[var(--cyan)]">
+                  {Math.round(st.tonnage).toLocaleString("es")} kg
+                </span>
+              </div>
+              {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => {
+                const v = muscleVol[m], t = tierOf(v), nx = TIER_KG[t + 1];
+                return (
+                  <div key={m}>
+                    <div className="flex justify-between">
+                      <span className="pixel-title text-[8px]">{MUSCLE_LABEL[m]} · T{t + 1}</span>
+                      <span className="mono text-xs tabular-nums text-[#8b93b8]">{Math.round(v)}{nx ? `/${nx}` : " MAX"} kg</span>
+                    </div>
+                    <Bar value={nx ? v - TIER_KG[t] : 1} max={nx ? nx - TIER_KG[t] : 1} color={["#7dff6a", "#3df2ff", "#ffe14d", "#ff7a1a", "#ff3f6c"][t]} h={8} />
+                  </div>
+                );
+              })}
+            </Panel>
+          </motion.div>
+        )}
+
+        {subTab === "awards" && (
+          <motion.div
+            key="sub-awards"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            {/* MEDALLAS DE CARRERA & LOGROS PERMANENTES */}
+            <AchievementHall />
+
+            {/* VITRINA DE TROFEOS SEMANALES */}
+            <TrophyCabinet trophies={trophies} />
+          </motion.div>
+        )}
+
+        {subTab === "settings" && (
+          <motion.div
+            key="sub-settings"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            <HeroSettingsPanel />
+
+            {/* NOTIFICACIONES PUSH REMOTAS (VAPID) */}
+            <PushPanel />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function HeroSettingsPanel() {
+  const { name, bodyweight, sound } = useGame(
+    useShallow((s) => ({
+      name: s.name,
+      bodyweight: s.bodyweight ?? 75,
+      sound: s.sound,
+    }))
+  );
+  const setName = useGame((s) => s.setName);
+  const setBodyweight = useGame((s) => s.setBodyweight);
+  const toggleSound = useGame((s) => s.toggleSound);
+
+  const [nameDraft, setNameDraft] = useState(name);
+  const [bwDraft, setBwDraft] = useState(String(bodyweight));
+  const [savedFlag, setSavedFlag] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setNameDraft(name);
+  }, [name]);
+
+  useEffect(() => {
+    setBwDraft(String(bodyweight));
+  }, [bodyweight]);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
+
+  const flashSaved = () => {
+    setSavedFlag(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSavedFlag(false), 1800);
+  };
+
+  const commitName = () => {
+    const clean = nameDraft.trim().slice(0, 12);
+    if (clean && clean !== name) {
+      setName(clean);
+      sfx.tap();
+      flashSaved();
+    } else if (!clean) {
+      setNameDraft(name);
+    }
+  };
+
+  const commitBw = (raw?: string) => {
+    const val = parseFloat((raw ?? bwDraft).replace(",", "."));
+    if (!Number.isNaN(val)) {
+      const clamped = Math.max(30, Math.min(250, Math.round(val * 10) / 10));
+      setBodyweight(clamped);
+      setBwDraft(String(clamped));
+      sfx.tick();
+      flashSaved();
+    } else {
+      setBwDraft(String(bodyweight));
+    }
+  };
+
+  return (
+    <Panel className="p-4 space-y-3.5">
+      <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">⚙</span>
+          <div>
+            <h3 className="pixel-title text-[10px] text-[var(--gold)]">PERFIL Y SISTEMA</h3>
+            <span className="pixel-title text-[7px] text-[#8b93b8]">NOMBRE · PESO · AUDIO</span>
+          </div>
+        </div>
+        {savedFlag && (
+          <span className="pixel-title border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[7px] text-[#7dff6a]">
+            ✓ GUARDADO
+          </span>
+        )}
+      </div>
+
+      {/* Nombre del héroe */}
+      <div className="space-y-1.5">
+        <label htmlFor="hero-name-input" className="pixel-title block text-[7.5px] text-[#cbd5e1]">
+          NOMBRE DEL HÉROE
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="hero-name-input"
+            type="text"
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                commitName();
+                e.currentTarget.blur();
+              }
+            }}
+            maxLength={12}
+            className="pixel-title flex-1 min-w-0 border-2 border-[#2c3350] bg-[#10131f] px-3 py-2 text-xs text-white outline-none focus:border-[var(--gold)]"
+          />
+          <PixelButton
+            variant="ghost"
+            className="px-3 py-2 text-[7.5px] shrink-0"
+            onClick={commitName}
+          >
+            OK
+          </PixelButton>
+        </div>
+      </div>
+
+      {/* Peso corporal */}
+      <div className="space-y-1.5 border-t border-[#2c3350] pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <label htmlFor="hero-bw-input" className="pixel-title block text-[7.5px] text-[#cbd5e1]">
+              PESO CORPORAL
+            </label>
+            <span className="mono text-[11px] text-[#8b93b8]">
+              Calibra Fuerza Relativa y peso corporal
+            </span>
+          </div>
+          <div className="flex items-stretch border-2 border-[#2c3350] bg-[#0c0e17] shrink-0">
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              transition={APPLE_TAP}
+              onClick={() => commitBw(String(bodyweight - 0.5))}
+              className="step-btn"
+              aria-label="Restar 0.5 kg"
+            >
+              −
+            </motion.button>
+            <div className="flex items-center px-1.5">
+              <input
+                id="hero-bw-input"
+                type="number"
+                step="0.5"
+                min="30"
+                max="250"
+                value={bwDraft}
+                onChange={(e) => setBwDraft(e.target.value)}
+                onBlur={() => commitBw()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    commitBw();
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="mono w-14 bg-transparent text-center font-bold text-white tabular-nums outline-none"
+                aria-label="Peso corporal en kg"
+              />
+              <span className="mono text-xs text-[var(--gold)] font-bold">kg</span>
+            </div>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              transition={APPLE_TAP}
+              onClick={() => commitBw(String(bodyweight + 0.5))}
+              className="step-btn"
+              aria-label="Sumar 0.5 kg"
+            >
+              +
+            </motion.button>
+          </div>
+        </div>
+      </div>
+
+      {/* Efectos de sonido retro */}
+      <div className="border-t border-[#2c3350] pt-3">
+        <motion.button
+          type="button"
           whileTap={{ scale: 0.98 }}
           transition={APPLE_TAP}
-          className="frame9 cursor-pointer"
+          onClick={() => {
+            toggleSound();
+            haptic(5);
+          }}
+          className={`flex w-full items-center justify-between gap-2 border-2 px-3 py-2.5 text-left transition-colors ${
+            sound
+              ? "border-[#3a7a30] bg-[#15291a]/40"
+              : "border-[#2c3350] bg-[#10131f] opacity-80"
+          }`}
         >
-          <Avatar cfg={cfg} scale={4} interactive />
-        </motion.div>
-        <div className="pixel-title text-[9px] text-[#8b93b8]">TOCA PARA FLEXIONAR</div>
-        <div className="w-full">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <span className="pixel-title text-[9.5px] text-[var(--gold)] truncate">LV {st.level} · {displayTitle}</span>
-            <span className="mono text-sm tabular-nums shrink-0">{st.exp - prev}/{next - prev}</span>
-          </div>
-          <Bar value={st.exp - prev} max={next - prev} color="var(--green)" h={12} />
-        </div>
-        {(combat.weapon || combat.pet) && (
-          <div className="w-full border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5 flex items-center justify-between text-[7px] pixel-title">
-            <span className="text-[#cbd5e1] truncate">
-              {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
-              {combat.weapon && combat.pet ? " · " : ""}
-              {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
-            </span>
-            <span className="text-[var(--green)] font-bold shrink-0 ml-2">+{combat.bossDmgPct}% BOSS</span>
-          </div>
-        )}
-        <div className="grid w-full grid-cols-4 gap-2 text-center">
-          {[["STR", st.str, "#ff3f6c"], ["HYP", st.hyp, "#c06cff"], ["STA", st.sta, "#3df2ff"], ["ORO", gold, "#ffe14d"]].map(([k, v, c]) => (
-            <motion.div
-              key={k as string}
-              whileHover={{ y: -2, scale: 1.03 }}
-              whileTap={{ scale: 0.95 }}
-              transition={APPLE_TAP}
-              className="border-2 border-[#2c3350] bg-[#10131f] p-2 cursor-pointer shadow-[2px_2px_0_#000]"
-            >
-              <div className="pixel-title text-[8px]" style={{ color: c as string }}>{k}</div>
-              <div className="mono text-lg tabular-nums">{v}</div>
-            </motion.div>
-          ))}
-        </div>
-        <div className="flex w-full items-center justify-between border-t border-[#2c3350] pt-2 px-1">
-          <span className="pixel-title text-[8px] text-[#8b93b8]">PESO CORPORAL</span>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              step="0.5"
-              min="30"
-              max="250"
-              defaultValue={bodyweight}
-              onBlur={(e) => {
-                const val = parseFloat(e.target.value);
-                if (!isNaN(val)) setBodyweight(val);
-              }}
-              className="mono w-16 bg-[#10131f] border-2 border-[#2c3350] px-1.5 py-1 text-center text-sm font-bold text-white tabular-nums outline-none focus:border-[var(--gold)] shadow-inner"
-              aria-label="Peso corporal en kg"
-            />
-            <span className="mono text-xs text-[var(--gold)] font-bold">kg</span>
-          </div>
-        </div>
-        <div className="mono w-full text-center text-sm text-[#8b93b8]">TONELAJE TOTAL: <b className="text-white tabular-nums">{Math.round(st.tonnage).toLocaleString("es")} kg</b></div>
-      </Panel>
-
-      {/* NOTIFICACIONES PUSH REMOTAS (VAPID) */}
-      <PushPanel />
-
-      {/* VITRINA DE TROFEOS SEMANALES */}
-      <TrophyCabinet trophies={trophies} />
-
-      {/* MEDALLAS DE CARRERA & LOGROS PERMANENTES */}
-      <AchievementHall />
-
-      {/* MAPA DE CALOR MUSCULAR ANATÓMICO (RECUPERACIÓN & FATIGA 7 DÍAS) */}
-      <Panel className="p-4">
-        <MuscleHeatmap />
-      </Panel>
-
-      <Panel className="space-y-2 p-4">
-        <h3 className="pixel-title text-[10px] text-[var(--gold)]">HIPERTROFIA</h3>
-        {(Object.keys(MUSCLE_LABEL) as Muscle[]).map((m) => {
-          const v = muscleVol[m], t = tierOf(v), nx = TIER_KG[t + 1];
-          return (
-            <div key={m}>
-              <div className="flex justify-between"><span className="pixel-title text-[8px]">{MUSCLE_LABEL[m]} · T{t + 1}</span><span className="mono text-xs tabular-nums text-[#8b93b8]">{Math.round(v)}{nx ? `/${nx}` : " MAX"} kg</span></div>
-              <Bar value={nx ? v - TIER_KG[t] : 1} max={nx ? nx - TIER_KG[t] : 1} color={["#7dff6a", "#3df2ff", "#ffe14d", "#ff7a1a", "#ff3f6c"][t]} h={8} />
+          <div>
+            <div className="pixel-title text-[8px] text-white">♪ EFECTOS DE SONIDO RETRO</div>
+            <div className="mono text-[11px] text-[#8b93b8] mt-0.5">
+              Bips 8-bit al completar series, PRs y botones
             </div>
-          );
-        })}
-      </Panel>
+          </div>
+          <span
+            className={`pixel-title shrink-0 border px-2 py-0.5 text-[7px] font-bold ${
+              sound
+                ? "border-black bg-[#7dff6a] text-black"
+                : "border-[#2c3350] bg-[#141826] text-[#8b93b8]"
+            }`}
+          >
+            {sound ? "ON" : "OFF"}
+          </span>
+        </motion.button>
+      </div>
 
-      <Armory level={st.level} />
-    </div>
+      <div className="mono border-t border-[#2c3350] pt-2 text-[11px] text-[#636c8f] text-center">
+        Copias de seguridad JSON/CSV disponibles en <b className="text-[#8b93b8]">PROGRESO</b>.
+      </div>
+    </Panel>
   );
 }
 
