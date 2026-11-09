@@ -36,6 +36,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.removeAttribute("data-theme");
     Promise.resolve(useGame.persist.rehydrate()).then(() => {
       useGame.getState().checkWeeklyReset();
     });
@@ -52,14 +53,10 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
   const sound = useGame((s) => s.sound);
-  const activeTheme = useGame((s) => s.activeTheme || "theme_default");
   const hasActiveWorkout = useGame((s) => !!s.active);
   const focusMode = useGame((s) => s.focusMode);
   const setFocusMode = useGame((s) => s.setFocusMode);
   useEffect(() => setSoundEnabled(sound), [sound]);
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", activeTheme);
-  }, [activeTheme]);
 
   const showNav = !hasActiveWorkout || !focusMode;
   const activeIdx = Math.max(0, TABS.findIndex((x) => x.id === tab));

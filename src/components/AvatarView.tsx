@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
-import { CRT_THEMES, ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf } from "@/lib/data";
+import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf } from "@/lib/data";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fxAt, haptic, sfx } from "@/lib/fx";
@@ -148,8 +148,6 @@ export default function AvatarView() {
       </Panel>
 
       <Armory level={st.level} />
-
-      <ThemeShop level={st.level} />
     </div>
   );
 }
@@ -563,95 +561,6 @@ function AchievementHall() {
           {expanded ? "▲ VER MENOS MEDALLAS" : `▼ VER TODAS LAS MEDALLAS (${ACHIEVEMENTS.length})`}
         </motion.button>
       )}
-    </Panel>
-  );
-}
-
-function ThemeShop({ level }: { level: number }) {
-  const { unlockedThemes, activeTheme, gold } = useGame(
-    useShallow((s) => ({
-      unlockedThemes: s.unlockedThemes || ["theme_default"],
-      activeTheme: s.activeTheme || "theme_default",
-      gold: s.gold,
-    }))
-  );
-  const buyTheme = useGame((s) => s.buyTheme);
-  const setActiveTheme = useGame((s) => s.setActiveTheme);
-
-  return (
-    <Panel className="p-4 space-y-3">
-      <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-base">📺</span>
-          <div>
-            <h3 className="pixel-title text-[10px] text-[var(--gold)]">TEMAS RETRO CRT</h3>
-            <span className="pixel-title text-[7px] text-[#8b93b8]">PALETA DE PANTALLA · {gold}G</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {CRT_THEMES.map((t) => {
-          const has = unlockedThemes.includes(t.id) || t.id === "theme_default";
-          const on = activeTheme === t.id;
-          const locked = level < t.minLevel;
-
-          return (
-            <motion.button
-              key={t.id}
-              whileHover={{ y: -2, scale: 1.015 }}
-              whileTap={{ scale: 0.95 }}
-              transition={APPLE_TAP}
-              onClick={(e) => {
-                if (has) {
-                  setActiveTheme(t.id);
-                  sfx.tap();
-                  haptic(8);
-                  return;
-                }
-                if (buyTheme(t.id)) {
-                  sfx.coin();
-                  haptic([15, 25, 35]);
-                  fxAt(e.currentTarget, (x, y) => [
-                    { kind: "burst", x, y, color: t.preview[1], count: 26 },
-                    { kind: "text", x, y, text: `-${t.price}G`, color: "#ffe14d" },
-                  ]);
-                } else {
-                  sfx.error();
-                  haptic([40, 30, 40]);
-                  e.currentTarget.animate(
-                    [
-                      { transform: "translateX(0)" },
-                      { transform: "translateX(-4px)" },
-                      { transform: "translateX(4px)" },
-                      { transform: "translateX(0)" },
-                    ],
-                    { duration: 160, easing: "steps(3)" }
-                  );
-                }
-              }}
-              className={`flex flex-col items-start gap-1.5 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
-                on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
-              } ${locked && !has ? "opacity-50" : ""}`}
-            >
-              <div className="flex w-full items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="flex shrink-0 border-2 border-black overflow-hidden">
-                    {t.preview.map((col, idx) => (
-                      <span key={idx} className="inline-block h-4 w-2.5" style={{ backgroundColor: col }} />
-                    ))}
-                  </span>
-                  <span className="pixel-title text-[8px] text-white truncate">{t.name.toUpperCase()}</span>
-                </div>
-                <span className="pixel-title text-[7.5px] text-[var(--gold)] shrink-0">
-                  {on ? "✓ ACTIVO" : has ? "APLICAR" : locked ? `🔒 LV ${t.minLevel}` : `${t.price}G`}
-                </span>
-              </div>
-              <span className="mono text-[11px] leading-tight text-[#8b93b8]">{t.desc}</span>
-            </motion.button>
-          );
-        })}
-      </div>
     </Panel>
   );
 }

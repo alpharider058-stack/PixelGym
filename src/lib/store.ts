@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  CRT_THEMES, CrtTheme, DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, isBodyweight, leagueOf, levelOf, weekOfUtc,
+  DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, isBodyweight, leagueOf, levelOf, weekOfUtc,
 } from "./data";
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from "./achievements";
 
@@ -71,8 +71,6 @@ interface State {
   bossKills: number;
   claimedAchievements: string[];
   activeTitle: string | null;
-  unlockedThemes: string[];
-  activeTheme: CrtTheme["id"];
   lastWorkoutSummary: WorkoutSummary | null;
 
   setName: (n: string) => void;
@@ -82,8 +80,6 @@ interface State {
   clearWorkoutSummary: () => void;
   claimAchievement: (id: string) => number;
   setActiveTitle: (title: string | null) => void;
-  buyTheme: (id: CrtTheme["id"]) => boolean;
-  setActiveTheme: (id: CrtTheme["id"]) => void;
   claimBossVictory: (gold: number, exp: number) => boolean;
   setRestTimeForEx: (exId: string, sec: number) => void;
   reorderActiveExercises: (fromIndex: number, toIndex: number) => void;
@@ -136,8 +132,6 @@ export const useGame = create<State>()(
       bossKills: 0,
       claimedAchievements: [],
       activeTitle: null,
-      unlockedThemes: ["theme_default"],
-      activeTheme: "theme_default",
       lastWorkoutSummary: null,
 
       setName: (name) => set({ name: name.slice(0, 12).toUpperCase() || "HÉROE" }),
@@ -166,30 +160,6 @@ export const useGame = create<State>()(
         return def.rewardGold;
       },
       setActiveTitle: (title) => set({ activeTitle: title }),
-      buyTheme: (id) => {
-        const s = get();
-        const theme = CRT_THEMES.find((t) => t.id === id);
-        if (!theme) return false;
-        const ownedThemes = s.unlockedThemes || ["theme_default"];
-        if (ownedThemes.includes(id)) {
-          set({ activeTheme: id });
-          return true;
-        }
-        if (s.gold < theme.price || levelOf(s.exp) < theme.minLevel) return false;
-        set({
-          gold: s.gold - theme.price,
-          unlockedThemes: [...ownedThemes, id],
-          activeTheme: id,
-        });
-        return true;
-      },
-      setActiveTheme: (id) => {
-        const s = get();
-        const ownedThemes = s.unlockedThemes || ["theme_default"];
-        if (ownedThemes.includes(id) || id === "theme_default") {
-          set({ activeTheme: id });
-        }
-      },
       claimBossVictory: (gold, exp) => {
         const s = get();
         if (s.bossDefeated) return false;
@@ -245,8 +215,6 @@ export const useGame = create<State>()(
             equipped: d.equipped ? { ...DEFAULT_EQUIP, ...d.equipped } : get().equipped,
             claimedAchievements: Array.isArray(d.claimedAchievements) ? d.claimedAchievements : get().claimedAchievements,
             activeTitle: typeof d.activeTitle === "string" || d.activeTitle === null ? d.activeTitle : get().activeTitle,
-            unlockedThemes: Array.isArray(d.unlockedThemes) ? Array.from(new Set(["theme_default", ...d.unlockedThemes])) : get().unlockedThemes,
-            activeTheme: typeof d.activeTheme === "string" ? (d.activeTheme as CrtTheme["id"]) : get().activeTheme,
             maxStreak: typeof d.maxStreak === "number" ? d.maxStreak : get().maxStreak,
             totalPrs: typeof d.totalPrs === "number" ? d.totalPrs : get().totalPrs,
             bossKills: typeof d.bossKills === "number" ? d.bossKills : get().bossKills,
@@ -709,8 +677,6 @@ export const useGame = create<State>()(
         if (!state) return;
         state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
         state.owned = Array.from(new Set([...(state.owned || []), ...Object.values(DEFAULT_EQUIP)]));
-        state.unlockedThemes = Array.from(new Set(["theme_default", ...(state.unlockedThemes || [])]));
-        state.activeTheme = state.activeTheme || "theme_default";
         state.claimedAchievements = state.claimedAchievements || [];
         state.maxStreak = Math.max(state.maxStreak || 0, state.streak || 0);
         state.totalPrs = state.totalPrs || 0;

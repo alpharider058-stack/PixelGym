@@ -208,23 +208,6 @@ export function getCombatBonus(eq?: Partial<Equipped>): { bossDmgPct: number; we
   };
 }
 
-export interface CrtTheme {
-  id: "theme_default" | "theme_gameboy" | "theme_synthwave" | "theme_inferno" | "theme_cyberice";
-  name: string;
-  desc: string;
-  price: number;
-  minLevel: number;
-  preview: [string, string, string]; // [bg, accent1, accent2]
-}
-
-export const CRT_THEMES: CrtTheme[] = [
-  { id: "theme_default", name: "Arcade Clásico", desc: "Estética original azul medianoche & oro.", price: 0, minLevel: 1, preview: ["#0b0d17", "#ffe14d", "#3df2ff"] },
-  { id: "theme_gameboy", name: "GameBoy '89", desc: "Fósforo verde clásico portátil de 8-bit.", price: 350, minLevel: 2, preview: ["#0e2115", "#c8f53b", "#7dff6a"] },
-  { id: "theme_synthwave", name: "Neon Synthwave", desc: "Púrpura outrun, láser neón y cian.", price: 500, minLevel: 4, preview: ["#1a0933", "#00f5d4", "#ff2a85"] },
-  { id: "theme_inferno", name: "Inferno Red", desc: "Obsidiana ardiente, ámbar fundido y brasas.", price: 650, minLevel: 6, preview: ["#240c10", "#ffb703", "#ff5938"] },
-  { id: "theme_cyberice", name: "Cyber Ice", desc: "Glaciar digital cian de alta claridad.", price: 650, minLevel: 6, preview: ["#0b2232", "#a5f3fc", "#38bdf8"] },
-];
-
 export const LEAGUES = [
   { name: "BRONCE", min: 0, color: "#c47a3a" },
   { name: "PLATA", min: 1500, color: "#c8d0dc" },

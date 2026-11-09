@@ -92,8 +92,6 @@ export default function HistoryView() {
       trophies: state.trophies,
       claimedAchievements: state.claimedAchievements,
       activeTitle: state.activeTitle,
-      unlockedThemes: state.unlockedThemes,
-      activeTheme: state.activeTheme,
       customRoutines: state.customRoutines,
       deletedRoutineIds: state.deletedRoutineIds,
       owned: state.owned,

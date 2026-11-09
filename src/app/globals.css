@@ -3,112 +3,12 @@
 :root {
   --bg: #0b0d17;
   --panel: #161a2b;
-  --surface: #10131f;
-  --surface-alt: #141826;
-  --surface-deep: #0c0e17;
   --edge: #2c3350;
   --gold: #ffe14d;
   --cyan: #3df2ff;
   --red: #ff3f6c;
   --green: #7dff6a;
-  --grid-dot: rgba(255,255,255,.025);
-  --btn-primary: #3b5bdb;
-  --btn-ghost: #1d2236;
-  --btn-ghost-text: #cfd5f5;
-  --btn-danger: #a01c2c;
-  --btn-gold: #d4a017;
-  --btn-gold-text: #120c00;
-  --btn-cyan: #0e7c8a;
-  --scan-opacity: 0.12;
   color-scheme: dark;
-}
-
-:root[data-theme="theme_gameboy"] {
-  --bg: #07120b;
-  --panel: #102417;
-  --surface: #0a180f;
-  --surface-alt: #142c1c;
-  --surface-deep: #061009;
-  --edge: #356940;
-  --gold: #c8f53b;
-  --cyan: #8be866;
-  --red: #ff6b6b;
-  --green: #a9ff4d;
-  --grid-dot: rgba(169, 255, 77, 0.045);
-  --btn-primary: #296238;
-  --btn-ghost: #15311e;
-  --btn-ghost-text: #dcfce7;
-  --btn-danger: #9b2226;
-  --btn-gold: #a3d918;
-  --btn-gold-text: #061208;
-  --btn-cyan: #1f7a5c;
-  --scan-opacity: 0.16;
-}
-
-:root[data-theme="theme_synthwave"] {
-  --bg: #110521;
-  --panel: #1f0d3b;
-  --surface: #150829;
-  --surface-alt: #28124b;
-  --surface-deep: #0c0318;
-  --edge: #5d2b99;
-  --gold: #ffe14d;
-  --cyan: #00f5d4;
-  --red: #ff2a85;
-  --green: #72efdd;
-  --grid-dot: rgba(255, 42, 133, 0.045);
-  --btn-primary: #6d28d9;
-  --btn-ghost: #2a144d;
-  --btn-ghost-text: #f3e8ff;
-  --btn-danger: #be185d;
-  --btn-gold: #f5c518;
-  --btn-gold-text: #140424;
-  --btn-cyan: #0891b2;
-  --scan-opacity: 0.14;
-}
-
-:root[data-theme="theme_inferno"] {
-  --bg: #120608;
-  --panel: #240c10;
-  --surface: #17080a;
-  --surface-alt: #2e1116;
-  --surface-deep: #0d0405;
-  --edge: #6b222c;
-  --gold: #ffb703;
-  --cyan: #ff7b47;
-  --red: #ff3355;
-  --green: #a3e635;
-  --grid-dot: rgba(255, 95, 50, 0.04);
-  --btn-primary: #991b1b;
-  --btn-ghost: #301217;
-  --btn-ghost-text: #ffe4e6;
-  --btn-danger: #dc2626;
-  --btn-gold: #f59e0b;
-  --btn-gold-text: #1c0802;
-  --btn-cyan: #c2410c;
-  --scan-opacity: 0.14;
-}
-
-:root[data-theme="theme_cyberice"] {
-  --bg: #04111a;
-  --panel: #0b2232;
-  --surface: #071722;
-  --surface-alt: #112d42;
-  --surface-deep: #030c12;
-  --edge: #21597a;
-  --gold: #a5f3fc;
-  --cyan: #38bdf8;
-  --red: #fb7185;
-  --green: #6ee7b7;
-  --grid-dot: rgba(56, 189, 248, 0.045);
-  --btn-primary: #0369a1;
-  --btn-ghost: #122f45;
-  --btn-ghost-text: #e0f2fe;
-  --btn-danger: #be123c;
-  --btn-gold: #22d3ee;
-  --btn-gold-text: #04111a;
-  --btn-cyan: #0284c7;
-  --scan-opacity: 0.12;
 }
 
 html, body {
@@ -124,8 +24,8 @@ html, body {
 body {
   font-family: var(--font-mono), ui-monospace, monospace;
   background-image:
-    linear-gradient(var(--grid-dot) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-dot) 1px, transparent 1px);
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
   background-size: 8px 8px;
 }
 input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px = no iOS zoom on focus */
@@ -159,11 +59,11 @@ input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px
     touch-action: manipulation;
   }
   .pbtn:disabled { opacity: .45; }
-  .pbtn-primary { background: var(--btn-primary); }
-  .pbtn-ghost { background: var(--btn-ghost); color: var(--btn-ghost-text); }
-  .pbtn-danger { background: var(--btn-danger); }
-  .pbtn-gold { background: var(--btn-gold); color: var(--btn-gold-text); }
-  .pbtn-cyan { background: var(--btn-cyan); }
+  .pbtn-primary { background: #3b5bdb; }
+  .pbtn-ghost { background: #1d2236; color: #cfd5f5; }
+  .pbtn-danger { background: #a01c2c; }
+  .pbtn-gold { background: #d4a017; color: #120c00; }
+  .pbtn-cyan { background: #0e7c8a; }
 
   .step-btn {
     width: 1.75rem;
@@ -171,8 +71,8 @@ input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--surface-alt);
-    border: 2px solid var(--edge);
+    background: #1d2236;
+    border: 2px solid #4a5280;
     color: var(--gold);
     font-family: var(--font-pixel), monospace;
     font-size: 13px;
@@ -184,32 +84,25 @@ input { user-select: text; -webkit-user-select: text; font-size: 16px; } /* 16px
   .step-btn:disabled { opacity: .3; }
 
   .pinput {
-    background: var(--surface); border: 3px solid var(--edge); padding: .5rem .75rem;
+    background: #10131f; border: 3px solid #4a5280; padding: .5rem .75rem;
     font-family: var(--font-pixel), monospace; font-size: 12px; color: #fff; outline: none;
   }
 
-  .pbar { position: relative; width: 100%; background: var(--surface-deep); border: 2px solid #000; box-shadow: 0 0 0 2px var(--edge); overflow: hidden; }
+  .pbar { position: relative; width: 100%; background: #0a0c14; border: 2px solid #000; box-shadow: 0 0 0 2px #2c3350; overflow: hidden; }
   .pbar-fill {
     position: absolute; inset: 0; transform-origin: 0 50%; will-change: transform;
     box-shadow: inset 0 -3px 0 rgba(0,0,0,.3), inset 0 2px 0 rgba(255,255,255,.35);
   }
 
-  .hud, .navbar { background: color-mix(in srgb, var(--bg) 92%, transparent); }
+  .hud, .navbar { background: rgba(11,13,23,.92); }
   .hud { border-bottom: 4px solid #000; box-shadow: 0 4px 0 var(--edge); }
   .navbar { border-top: 4px solid #000; box-shadow: 0 -4px 0 var(--edge); }
-}
-
-@layer utilities {
-  :root[data-theme]:not([data-theme="theme_default"]) .bg-\[\#10131f\] { background-color: var(--surface); }
-  :root[data-theme]:not([data-theme="theme_default"]) .bg-\[\#141826\] { background-color: var(--surface-alt); }
-  :root[data-theme]:not([data-theme="theme_default"]) .bg-\[\#0c0e17\] { background-color: var(--surface-deep); }
-  :root[data-theme]:not([data-theme="theme_default"]) .border-\[\#2c3350\] { border-color: var(--edge); }
 }
 
 /* CRT scanlines (static, composited once) */
 body::after {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 70;
-  background: repeating-linear-gradient(0deg, rgba(0,0,0,var(--scan-opacity)) 0 1px, transparent 1px 3px);
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1px, transparent 1px 3px);
   mix-blend-mode: multiply;
 }
 

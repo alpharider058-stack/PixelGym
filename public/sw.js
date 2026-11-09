@@ -1,5 +1,5 @@
 /* PixelGym RPG service worker: 100% offline-first app shell + background rest timer notifications */
-const VERSION = "pixelgym-v5";
+const VERSION = "pixelgym-v6";
 const SHELL = [
   "/",
   "/manifest.json",
