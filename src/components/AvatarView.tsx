@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
-import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
-import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, tierOf, titleOf } from "@/lib/data";
+import { CRT_THEMES, ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf } from "@/lib/data";
+import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fxAt, haptic, sfx } from "@/lib/fx";
 import Avatar from "./Avatar";
@@ -12,14 +13,20 @@ import { Sheet } from "./GymView";
 import MuscleHeatmap from "./MuscleHeatmap";
 
 const SLOTS: { id: Slot; label: string }[] = [
-  { id: "shirt", label: "ROPA" }, { id: "belt", label: "CINTO" }, { id: "wrist", label: "MUÑECA" },
-  { id: "hair", label: "PELO" }, { id: "aura", label: "AURA" }, { id: "bg", label: "FONDO" },
+  { id: "shirt", label: "ROPA" },
+  { id: "weapon", label: "ARMAS" },
+  { id: "pet", label: "MASCOTAS" },
+  { id: "belt", label: "CINTO" },
+  { id: "wrist", label: "MUÑECA" },
+  { id: "hair", label: "PELO" },
+  { id: "aura", label: "AURA" },
+  { id: "bg", label: "FONDO" },
 ];
 
 export default function AvatarView() {
   const cfg = useMyAvatar();
   const st = useStats();
-  const { name, gold, muscleVol, sound, trophies, bodyweight } = useGame(
+  const { name, gold, muscleVol, sound, trophies, bodyweight, activeTitle, equipped } = useGame(
     useShallow((s) => ({
       name: s.name,
       gold: s.gold,
@@ -27,6 +34,8 @@ export default function AvatarView() {
       sound: s.sound,
       trophies: s.trophies || [],
       bodyweight: s.bodyweight ?? 75,
+      activeTitle: s.activeTitle,
+      equipped: s.equipped,
     }))
   );
   const setName = useGame((s) => s.setName);
@@ -34,6 +43,8 @@ export default function AvatarView() {
   const toggleSound = useGame((s) => s.toggleSound);
   const prev = st.level > 1 ? expForLevel(st.level - 1) : 0;
   const next = expForLevel(st.level);
+  const combat = getCombatBonus(equipped);
+  const displayTitle = (activeTitle || titleOf(st.level)).toUpperCase();
 
   return (
     <div className="flex flex-col gap-5">
@@ -60,12 +71,22 @@ export default function AvatarView() {
         </motion.div>
         <div className="pixel-title text-[9px] text-[#8b93b8]">TOCA PARA FLEXIONAR</div>
         <div className="w-full">
-          <div className="mb-1 flex justify-between">
-            <span className="pixel-title text-[10px] text-[var(--gold)]">LV {st.level} · {titleOf(st.level).toUpperCase()}</span>
-            <span className="mono text-sm tabular-nums">{st.exp - prev}/{next - prev}</span>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="pixel-title text-[9.5px] text-[var(--gold)] truncate">LV {st.level} · {displayTitle}</span>
+            <span className="mono text-sm tabular-nums shrink-0">{st.exp - prev}/{next - prev}</span>
           </div>
           <Bar value={st.exp - prev} max={next - prev} color="var(--green)" h={12} />
         </div>
+        {(combat.weapon || combat.pet) && (
+          <div className="w-full border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5 flex items-center justify-between text-[7px] pixel-title">
+            <span className="text-[#cbd5e1] truncate">
+              {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
+              {combat.weapon && combat.pet ? " · " : ""}
+              {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
+            </span>
+            <span className="text-[var(--green)] font-bold shrink-0 ml-2">+{combat.bossDmgPct}% BOSS</span>
+          </div>
+        )}
         <div className="grid w-full grid-cols-4 gap-2 text-center">
           {[["STR", st.str, "#ff3f6c"], ["HYP", st.hyp, "#c06cff"], ["STA", st.sta, "#3df2ff"], ["ORO", gold, "#ffe14d"]].map(([k, v, c]) => (
             <motion.div
@@ -105,6 +126,9 @@ export default function AvatarView() {
       {/* VITRINA DE TROFEOS SEMANALES */}
       <TrophyCabinet trophies={trophies} />
 
+      {/* MEDALLAS DE CARRERA & LOGROS PERMANENTES */}
+      <AchievementHall />
+
       {/* MAPA DE CALOR MUSCULAR ANATÓMICO (RECUPERACIÓN & FATIGA 7 DÍAS) */}
       <Panel className="p-4">
         <MuscleHeatmap />
@@ -124,6 +148,8 @@ export default function AvatarView() {
       </Panel>
 
       <Armory level={st.level} />
+
+      <ThemeShop level={st.level} />
     </div>
   );
 }
@@ -337,33 +363,33 @@ function Armory({ level }: { level: number }) {
   const equip = useGame((s) => s.equip);
   return (
     <Panel className="p-4">
-      <h3 className="pixel-title mb-3 text-[10px] text-[var(--gold)]">ARMERÍA · <span className="text-white">{gold}G</span></h3>
-      <LayoutGroup id="armory-slots">
-        <div className="mb-3 flex gap-1 overflow-x-auto pb-1">
-          {SLOTS.map((s) => (
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="pixel-title text-[10px] text-[var(--gold)]">ARMERÍA · <span className="text-white">{gold}G</span></h3>
+        <span className="pixel-title text-[6.5px] text-[#8b93b8]">EQUIPO · ARMAS · MASCOTAS</span>
+      </div>
+      <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1.5 touch-pan-x">
+        {SLOTS.map((s) => {
+          const active = slot === s.id;
+          return (
             <motion.button
               key={s.id}
-              whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.92 }}
               transition={APPLE_TAP}
               onClick={() => { setSlot(s.id); sfx.tick(); }}
-              className={`relative shrink-0 px-2 py-2 pixel-title text-[8px] ${slot === s.id ? "text-black font-bold" : "text-[#8b93b8]"}`}
+              className={`shrink-0 border-2 px-2.5 py-2 pixel-title text-[7.5px] transition-colors ${
+                active
+                  ? "border-black bg-[var(--gold)] text-black font-bold shadow-[2px_2px_0_#000]"
+                  : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+              }`}
             >
-              {slot === s.id && (
-                <motion.span
-                  layoutId="slot-pill"
-                  className="absolute inset-0 bg-[var(--gold)] border border-black shadow-[1px_1px_0_#000]"
-                  transition={APPLE_SPRING}
-                />
-              )}
-              <span className="relative">{s.label}</span>
+              {s.label}
             </motion.button>
-          ))}
-        </div>
-      </LayoutGroup>
+          );
+        })}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {ITEMS.filter((i) => i.slot === slot).map((it) => {
-          const has = owned.includes(it.id), on = equipped[slot] === it.id, locked = level < it.minLevel;
+          const has = owned.includes(it.id), on = (equipped?.[slot] ?? "") === it.id, locked = level < it.minLevel;
           return (
             <motion.button
               key={it.id}
@@ -375,15 +401,253 @@ function Armory({ level }: { level: number }) {
                 if (buy(it.id)) { sfx.coin(); haptic([10, 20, 30]); fxAt(e.currentTarget, (x, y) => [{ kind: "burst", x, y, color: "#ffe14d", count: 24 }, { kind: "text", x, y, text: `-${it.price}G`, color: "#ffe14d" }]); }
                 else { sfx.error(); haptic([40, 30, 40]); e.currentTarget.animate([{ transform: "translateX(0)" }, { transform: "translateX(-4px)" }, { transform: "translateX(4px)" }, { transform: "translateX(0)" }], { duration: 160, easing: "steps(3)" }); }
               }}
-              className={`flex flex-col items-start gap-1 border-2 p-2 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"} ${locked && !has ? "opacity-50" : ""}`}
+              className={`flex flex-col items-start gap-1 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"} ${locked && !has ? "opacity-50" : ""}`}
             >
               <span className="flex items-center gap-2">
-                <span className="pixelated inline-block h-4 w-4 border-2 border-black" style={{ background: it.color || "repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)" }} />
-                <span className="mono text-sm leading-tight">{it.name}</span>
+                <span className="pixelated inline-block h-4 w-4 shrink-0 border-2 border-black" style={{ background: it.color || "repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)" }} />
+                <span className="mono text-sm leading-tight text-white">{it.name}</span>
               </span>
+              {it.desc && (
+                <span className="mono text-[11px] leading-tight text-[var(--cyan)]">
+                  {it.desc}
+                </span>
+              )}
               <span className="pixel-title text-[8px] text-[#8b93b8]">
-                {on ? "EQUIPADO" : has ? "EQUIPAR" : locked ? `🔒 LV ${it.minLevel}` : `${it.price}G`}
+                {on ? "✓ EQUIPADO" : has ? "EQUIPAR" : locked ? `🔒 LV ${it.minLevel}` : `${it.price}G`}
               </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+function AchievementHall() {
+  const { tonnage, streak, maxStreak, history, owned, bossKills, totalPrs, claimedAchievements, activeTitle } = useGame(
+    useShallow((s) => ({
+      tonnage: s.tonnage,
+      streak: s.streak,
+      maxStreak: s.maxStreak || 0,
+      history: s.history || [],
+      owned: s.owned || [],
+      bossKills: s.bossKills || 0,
+      totalPrs: s.totalPrs || 0,
+      claimedAchievements: s.claimedAchievements || [],
+      activeTitle: s.activeTitle,
+    }))
+  );
+  const claimAchievement = useGame((s) => s.claimAchievement);
+  const setActiveTitle = useGame((s) => s.setActiveTitle);
+  const [expanded, setExpanded] = useState(false);
+
+  const snap = { tonnage, streak, maxStreak, history, owned, bossKills, totalPrs };
+  const evaluated = ACHIEVEMENTS.map((def) => {
+    const ev = def.eval(snap);
+    const claimed = claimedAchievements.includes(def.id);
+    return { def, ...ev, claimed };
+  });
+
+  const unlockedCount = evaluated.filter((x) => x.unlocked).length;
+  const claimableCount = evaluated.filter((x) => x.unlocked && !x.claimed).length;
+  const shown = expanded ? evaluated : evaluated.slice(0, 6);
+
+  return (
+    <Panel className="p-4 space-y-3">
+      <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🎖️</span>
+          <div>
+            <h3 className="pixel-title text-[10px] text-[var(--gold)]">MEDALLAS DE CARRERA</h3>
+            <span className="pixel-title text-[7px] text-[#8b93b8]">LOGROS PERMANENTES Y TÍTULOS</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {claimableCount > 0 && (
+            <span className="pixel-title animate-pulse border border-black bg-[var(--gold)] px-1.5 py-0.5 text-[7px] font-bold text-black">
+              {claimableCount} LISTO{claimableCount > 1 ? "S" : ""}
+            </span>
+          )}
+          <span className="mono text-xs tabular-nums text-[var(--cyan)]">
+            {unlockedCount}/{ACHIEVEMENTS.length}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {shown.map(({ def, unlocked, progress, target, unit, claimed }) => {
+          const isTitleOn = activeTitle === def.profileTitle;
+          return (
+            <div
+              key={def.id}
+              className={`flex flex-col justify-between gap-2 border-2 p-2.5 shadow-[2px_2px_0_#000] transition-colors ${
+                unlocked && !claimed
+                  ? "border-[var(--gold)] bg-[#241e0a]"
+                  : unlocked
+                  ? "border-[#3a7a30] bg-[#15291a]/45"
+                  : "border-[#2c3350] bg-[#10131f]"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2 min-w-0">
+                  <span className={`text-xl leading-none shrink-0 ${unlocked ? "" : "grayscale opacity-50"}`}>
+                    {def.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="pixel-title text-[7.5px] text-white leading-snug">{def.title}</div>
+                    <div className="mono text-[11px] leading-tight text-[#cbd5e1] mt-0.5">{def.desc}</div>
+                  </div>
+                </div>
+                <span className="pixel-title text-[7px] text-[var(--gold)] shrink-0">+{def.rewardGold}G</span>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between mono text-[10.5px] text-[#8b93b8]">
+                  <span>Título: <b className="text-white">{def.profileTitle}</b></span>
+                  <span className="tabular-nums">{progress.toLocaleString("es")}/{target.toLocaleString("es")} {unit}</span>
+                </div>
+                <Bar value={progress} max={target} color={unlocked ? "#7dff6a" : def.color} h={6} />
+              </div>
+
+              {unlocked && !claimed ? (
+                <PixelButton
+                  variant="gold"
+                  className="w-full py-2 text-[8px] font-bold"
+                  onClick={(e) => {
+                    const g = claimAchievement(def.id);
+                    if (g > 0) {
+                      sfx.achievement();
+                      haptic([15, 25, 40]);
+                      fxAt(e.currentTarget, (x, y) => [
+                        { kind: "burst", x, y, color: "#ffe14d", count: 28 },
+                        { kind: "text", x, y: y - 12, text: `+${g}G`, color: "#ffe14d" },
+                      ]);
+                    }
+                  }}
+                >
+                  🎁 COBRAR +{def.rewardGold}G Y TÍTULO
+                </PixelButton>
+              ) : unlocked ? (
+                <motion.button
+                  whileTap={{ scale: 0.94 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    sfx.tap();
+                    haptic(5);
+                    setActiveTitle(isTitleOn ? null : def.profileTitle);
+                  }}
+                  className={`pixel-title w-full border py-1.5 text-[7px] transition-colors ${
+                    isTitleOn
+                      ? "border-[var(--gold)] bg-[var(--gold)] text-black font-bold"
+                      : "border-[#2c3350] bg-[#141826] text-[#cbd5e1]"
+                  }`}
+                >
+                  {isTitleOn ? "✓ TÍTULO EQUIPADO (TOCA PARA QUITAR)" : `EQUIPAR «${def.profileTitle.toUpperCase()}»`}
+                </motion.button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {ACHIEVEMENTS.length > 6 && (
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          transition={APPLE_TAP}
+          onClick={() => {
+            setExpanded((e) => !e);
+            sfx.tick();
+          }}
+          className="pixel-title w-full border-2 border-[#2c3350] bg-[#10131f] py-2 text-[7.5px] text-[var(--cyan)]"
+        >
+          {expanded ? "▲ VER MENOS MEDALLAS" : `▼ VER TODAS LAS MEDALLAS (${ACHIEVEMENTS.length})`}
+        </motion.button>
+      )}
+    </Panel>
+  );
+}
+
+function ThemeShop({ level }: { level: number }) {
+  const { unlockedThemes, activeTheme, gold } = useGame(
+    useShallow((s) => ({
+      unlockedThemes: s.unlockedThemes || ["theme_default"],
+      activeTheme: s.activeTheme || "theme_default",
+      gold: s.gold,
+    }))
+  );
+  const buyTheme = useGame((s) => s.buyTheme);
+  const setActiveTheme = useGame((s) => s.setActiveTheme);
+
+  return (
+    <Panel className="p-4 space-y-3">
+      <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">📺</span>
+          <div>
+            <h3 className="pixel-title text-[10px] text-[var(--gold)]">TEMAS RETRO CRT</h3>
+            <span className="pixel-title text-[7px] text-[#8b93b8]">PALETA DE PANTALLA · {gold}G</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {CRT_THEMES.map((t) => {
+          const has = unlockedThemes.includes(t.id) || t.id === "theme_default";
+          const on = activeTheme === t.id;
+          const locked = level < t.minLevel;
+
+          return (
+            <motion.button
+              key={t.id}
+              whileHover={{ y: -2, scale: 1.015 }}
+              whileTap={{ scale: 0.95 }}
+              transition={APPLE_TAP}
+              onClick={(e) => {
+                if (has) {
+                  setActiveTheme(t.id);
+                  sfx.tap();
+                  haptic(8);
+                  return;
+                }
+                if (buyTheme(t.id)) {
+                  sfx.coin();
+                  haptic([15, 25, 35]);
+                  fxAt(e.currentTarget, (x, y) => [
+                    { kind: "burst", x, y, color: t.preview[1], count: 26 },
+                    { kind: "text", x, y, text: `-${t.price}G`, color: "#ffe14d" },
+                  ]);
+                } else {
+                  sfx.error();
+                  haptic([40, 30, 40]);
+                  e.currentTarget.animate(
+                    [
+                      { transform: "translateX(0)" },
+                      { transform: "translateX(-4px)" },
+                      { transform: "translateX(4px)" },
+                      { transform: "translateX(0)" },
+                    ],
+                    { duration: 160, easing: "steps(3)" }
+                  );
+                }
+              }}
+              className={`flex flex-col items-start gap-1.5 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
+                on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
+              } ${locked && !has ? "opacity-50" : ""}`}
+            >
+              <div className="flex w-full items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="flex shrink-0 border-2 border-black overflow-hidden">
+                    {t.preview.map((col, idx) => (
+                      <span key={idx} className="inline-block h-4 w-2.5" style={{ backgroundColor: col }} />
+                    ))}
+                  </span>
+                  <span className="pixel-title text-[8px] text-white truncate">{t.name.toUpperCase()}</span>
+                </div>
+                <span className="pixel-title text-[7.5px] text-[var(--gold)] shrink-0">
+                  {on ? "✓ ACTIVO" : has ? "APLICAR" : locked ? `🔒 LV ${t.minLevel}` : `${t.price}G`}
+                </span>
+              </div>
+              <span className="mono text-[11px] leading-tight text-[#8b93b8]">{t.desc}</span>
             </motion.button>
           );
         })}

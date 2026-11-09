@@ -13,7 +13,159 @@ export const AH = 72;
 
 const SKIN = "#e0a370", SHADE = "#b2703f", HI = "#f6c99c", OUT = "#24150e", VEIN = "#9a5a34";
 
-/** Draws the modular pixel avatar into a 64x72 logical canvas. Pure + cheap (~200 fillRects). */
+/** Draws the equipped pixel pet sprite anchored around bottom-center (ax, ay) using pixel unit `u`. */
+export function drawPetSprite(
+  r: (x: number, y: number, w: number, h: number, col: string) => void,
+  petId: string | undefined,
+  ax: number,
+  ay: number,
+  t: number,
+  u = 1
+) {
+  if (!petId || petId === "pet_none") return;
+  const p = (dx: number, dy: number, w: number, h: number, col: string) =>
+    r(ax + dx * u, ay + dy * u, w * u, h * u, col);
+  const bob = Math.round(Math.sin(t / 280));
+  const flap = Math.sin(t / 130) > 0 ? 1 : 0;
+
+  if (petId === "pet_owl") {
+    const oy = bob - 1;
+    // shadow
+    p(-4, 0, 8, 1, "rgba(0,0,0,0.35)");
+    // outline + body
+    p(-5, oy - 11, 10, 9, "#1c0d36");
+    p(-4, oy - 13, 2, 2, "#1c0d36");
+    p(2, oy - 13, 2, 2, "#1c0d36");
+    // feather fill
+    p(-4, oy - 10, 8, 7, "#7c3aed");
+    p(-3, oy - 12, 2, 2, "#a78bfa");
+    p(1, oy - 12, 2, 2, "#a78bfa");
+    // chest
+    p(-2, oy - 6, 4, 3, "#fef3c7");
+    // wings
+    p(-6, oy - 8 - flap, 2, 4, "#5b21b6");
+    p(4, oy - 8 - flap, 2, 4, "#5b21b6");
+    // big golden eyes + beak
+    p(-3, oy - 9, 2, 2, "#ffe14d");
+    p(1, oy - 9, 2, 2, "#ffe14d");
+    p(-0.5, oy - 7, 1, 2, "#f97316");
+    // talons
+    p(-3, oy - 2, 2, 1, "#f59e0b");
+    p(1, oy - 2, 2, 1, "#f59e0b");
+  } else if (petId === "pet_wolf") {
+    const step = Math.sin(t / 240) > 0.3 ? 1 : 0;
+    p(-6, 0, 12, 1, "rgba(0,0,0,0.4)");
+    // tail
+    p(-8, -7 - step, 3, 2, "#64748b");
+    p(-9, -8 - step, 2, 2, "#cbd5e1");
+    // torso + legs outline
+    p(-6, -8, 10, 5, "#1e293b");
+    p(-5, -3, 2, 3, "#475569");
+    p(1, -3, 2, 3, "#475569");
+    // silver coat
+    p(-5, -7, 8, 4, "#94a3b8");
+    p(-4, -5, 6, 2, "#cbd5e1");
+    // spiked cyber collar
+    p(2, -8, 2, 4, "#0f172a");
+    p(2, -7, 2, 2, "#3df2ff");
+    // head & ears facing right
+    p(1, -13, 6, 5, "#475569");
+    p(2, -12, 5, 4, "#94a3b8");
+    p(5, -10, 3, 2, "#cbd5e1"); // snout
+    p(7, -10, 1, 1, "#000"); // nose
+    p(1, -15, 2, 2, "#64748b"); // ear
+    p(4, -15, 2, 2, "#64748b"); // ear
+    p(4, -11, 2, 1, "#3df2ff"); // glowing eye
+  } else if (petId === "pet_dragon") {
+    const dy = bob - 2;
+    p(-5, 0, 10, 1, "rgba(0,0,0,0.35)");
+    // wings
+    p(-7, dy - 10 - flap * 2, 4, 4, "#9f1239");
+    p(-6, dy - 9 - flap * 2, 2, 2, "#ff7a1a");
+    // tail
+    p(-7, dy - 4, 4, 2, "#e11d48");
+    p(-8, dy - 5, 2, 2, "#ffe14d");
+    // body
+    p(-4, dy - 9, 8, 7, "#881337");
+    p(-3, dy - 8, 6, 5, "#ff3f6c");
+    p(-1, dy - 6, 4, 3, "#ffe14d"); // belly
+    // head
+    p(0, dy - 14, 7, 6, "#881337");
+    p(1, dy - 13, 5, 4, "#ff3f6c");
+    // horns
+    p(0, dy - 16, 2, 2, "#ffe14d");
+    p(3, dy - 16, 2, 2, "#ffe14d");
+    // eye + flame spark
+    p(4, dy - 12, 2, 2, "#ffe14d");
+    if (Math.sin(t / 350) > 0.4) {
+      p(7, dy - 11, 2, 2, "#ff7a1a");
+      p(9, dy - 12, 1, 1, "#ffe14d");
+    }
+    // feet
+    p(-3, dy - 2, 2, 1, "#ffe14d");
+    p(2, dy - 2, 2, 1, "#ffe14d");
+  } else if (petId === "pet_golem") {
+    const gy = bob - 2;
+    p(-5, 0, 10, 1, "rgba(0,0,0,0.35)");
+    // outer gold plate rim
+    p(-5, gy - 12, 10, 10, "#92400e");
+    p(-4, gy - 11, 8, 8, "#ffe14d");
+    p(-3, gy - 10, 6, 6, "#f59e0b");
+    // inner green reactor eye
+    p(-2, gy - 8, 4, 4, "#064e3b");
+    p(-1, gy - 7, 2, 2, "#7dff6a");
+    // floating mini rune fists
+    p(-7, gy - 7 + flap, 2, 3, "#7dff6a");
+    p(5, gy - 7 + (1 - flap), 2, 3, "#7dff6a");
+  }
+}
+
+function drawWeaponSprite(
+  r: (x: number, y: number, w: number, h: number, col: string) => void,
+  weaponId: string | undefined,
+  fx: number,
+  fy: number,
+  t: number
+) {
+  if (!weaponId || weaponId === "weapon_none") return;
+
+  if (weaponId === "weapon_dumbbell") {
+    // held diagonally/vertically in fist
+    r(fx - 1, fy - 4, 3, 9, "#64748b");
+    r(fx - 3, fy - 6, 7, 3, "#1e293b");
+    r(fx - 2, fy - 5, 5, 1, "#e2e8f0");
+    r(fx - 3, fy + 3, 7, 3, "#1e293b");
+    r(fx - 2, fy + 4, 5, 1, "#e2e8f0");
+  } else if (weaponId === "weapon_greatsword") {
+    // Barbell Greatsword pointing up
+    r(fx - 1, fy + 1, 3, 3, "#475569"); // pommel
+    r(fx - 4, fy - 2, 9, 3, "#0f172a"); // barbell guard
+    r(fx - 3, fy - 1, 7, 1, "#3df2ff");
+    r(fx - 2, fy - 17, 5, 15, "#475569"); // outline blade
+    r(fx - 1, fy - 16, 3, 14, "#cbd5e1");
+    r(fx, fy - 16, 1, 13, "#ffffff");
+  } else if (weaponId === "weapon_axe") {
+    // Crimson Battle Axe
+    r(fx, fy - 14, 2, 18, "#78350f");
+    r(fx - 5, fy - 15, 12, 8, "#4c0519");
+    r(fx - 4, fy - 14, 10, 6, "#ff3f6c");
+    r(fx - 5, fy - 13, 2, 4, "#ffe14d");
+    r(fx + 5, fy - 13, 2, 4, "#ffe14d");
+  } else if (weaponId === "weapon_hammer") {
+    // Titan Lightning Hammer
+    r(fx, fy - 12, 2, 16, "#78350f");
+    r(fx - 5, fy - 18, 12, 7, "#1e293b");
+    r(fx - 4, fy - 17, 10, 5, "#ffe14d");
+    r(fx - 5, fy - 16, 2, 3, "#3df2ff");
+    r(fx + 5, fy - 16, 2, 3, "#3df2ff");
+    if (Math.sin(t / 100) > 0.3) {
+      r(fx - 7, fy - 19, 2, 2, "#3df2ff");
+      r(fx + 7, fy - 14, 2, 2, "#ffffff");
+    }
+  }
+}
+
+/** Draws the modular pixel avatar into a 64x72 logical canvas. Pure + cheap (~220 fillRects). */
 export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: number, flex: number) {
   const { tiers, equipped } = cfg;
   const r = (x: number, y: number, w: number, h: number, col: string) => {
@@ -208,4 +360,12 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
 
   // level-based headband glow
   if (cfg.level >= 15) r(cx - 5, hb + 2, 10, 1, "#ff3f6c");
+
+  /* ---------- weapon (right fist) & pet companion ---------- */
+  const fistX = flex > 0
+    ? cx + shW + 9 - Math.max(1, (armW - 1) / 2)
+    : cx + shW + Math.max(1, armW * 0.45);
+  const fistY = flex > 0 ? topY - 12 : topY + 23;
+  drawWeaponSprite(r, equipped.weapon, Math.min(AW - 6, fistX), Math.max(16, fistY), t);
+  drawPetSprite(r, equipped.pet, 10, 66, t, 1);
 }

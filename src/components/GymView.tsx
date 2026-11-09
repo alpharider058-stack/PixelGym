@@ -3,8 +3,9 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
-import { allRoutines, useGame } from "@/lib/store";
+import { WorkoutSummary, allRoutines, useGame } from "@/lib/store";
 import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, isBodyweight, titleOf } from "@/lib/data";
+import { ACHIEVEMENT_MAP } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { getSetOverloadAdvice } from "@/lib/overload";
@@ -16,7 +17,16 @@ import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
 
 export default function GymView() {
   const active = useGame((s) => !!s.active);
-  return active ? <ActiveLogger /> : <RoutinePicker />;
+  const summary = useGame((s) => s.lastWorkoutSummary);
+  const clearSummary = useGame((s) => s.clearWorkoutSummary);
+  return (
+    <>
+      {active ? <ActiveLogger /> : <RoutinePicker />}
+      <AnimatePresence>
+        {summary && <WorkoutSummaryModal summary={summary} onClose={clearSummary} />}
+      </AnimatePresence>
+    </>
+  );
 }
 
 /* ---------------- Routine picker ---------------- */
@@ -27,6 +37,7 @@ function RoutinePicker() {
   const start = useGame((s) => s.startWorkout);
   const del = useGame((s) => s.deleteRoutine);
   const name = useGame((s) => s.name);
+  const activeTitle = useGame((s) => s.activeTitle);
   const streak = useGame((s) => s.streak);
   const myAvatar = useMyAvatar();
   const stats = useStats();
@@ -76,8 +87,8 @@ function RoutinePicker() {
                 LV {stats.level}
               </motion.span>
             </div>
-            <div className="pixel-title text-[7.5px] text-[#8b93b8]">
-              {titleOf(stats.level).toUpperCase()} · <span className="text-[var(--gold)]">🔥 RACHA {streak}D</span>
+            <div className="pixel-title text-[7.5px] text-[#8b93b8] truncate">
+              {(activeTitle || titleOf(stats.level)).toUpperCase()} · <span className="text-[var(--gold)]">🔥 RACHA {streak}D</span>
             </div>
 
             {/* EXP Bar: fills left to right on morph */}
@@ -1394,6 +1405,192 @@ export function RestTimer({
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/* ---------------- Post-Workout Epic RPG Summary Modal ("Misión Completada") ---------------- */
+function WorkoutSummaryModal({
+  summary,
+  onClose,
+}: {
+  summary: WorkoutSummary;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  const myAvatar = useMyAvatar();
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  const totalSec = Math.floor(summary.durationMs / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  const durStr = mins > 0 ? `${mins}m ${String(secs).padStart(2, "0")}s` : `${secs}s`;
+
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-3 sm:p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ scale: 0.78, y: 24, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        transition={APPLE_BOUNCE}
+        className="panel flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden border-4 border-[var(--gold)] bg-[#141826] shadow-[0_0_40px_rgba(255,225,77,0.28)]"
+      >
+        <div className="shrink-0 border-b-2 border-[#2c3350] bg-[#10131f] px-4 py-3 text-center">
+          <div className="pixel-title text-[8.5px] text-[var(--green)] tracking-wider">
+            ★ ¡MISIÓN COMPLETADA! ★
+          </div>
+          <h3 className="pixel-title mt-1 text-sm text-[var(--gold)] truncate">
+            ⚔ {summary.name}
+          </h3>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3.5 space-y-3.5 text-center">
+          {/* Flexing Hero & Earned Ribbon */}
+          <div className="flex items-center justify-center gap-4">
+            <div className="frame9 bg-black shrink-0">
+              <Avatar cfg={myAvatar} scale={1.7} interactive animate />
+            </div>
+            <div className="flex-1 space-y-1.5 text-left">
+              <div className="border-2 border-[var(--gold)] bg-[#241e0a] px-2.5 py-1.5 shadow-[2px_2px_0_#000]">
+                <div className="pixel-title text-[6.5px] text-[var(--gold)]">BOTÍN TOTAL</div>
+                <div className="mono text-lg font-bold text-white leading-tight tabular-nums">
+                  +{summary.exp} EXP · +{summary.gold}G
+                </div>
+              </div>
+              <div className="border border-[#2c3350] bg-[#10131f] px-2.5 py-1 flex items-center justify-between">
+                <span className="pixel-title text-[7px] text-[#8b93b8]">RACHA</span>
+                <span className="pixel-title text-[8px] text-[var(--gold)]">🔥 {summary.streak} DÍAS</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Main RPG Metrics */}
+          <div className="grid grid-cols-2 gap-2.5 text-center">
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ ...APPLE_SPRING, delay: 0.05 }}
+              className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 shadow-[2px_2px_0_#000]"
+            >
+              <div className="pixel-title text-[7px] text-[#8b93b8]">⏱ DURACIÓN</div>
+              <div className="mono text-xl font-bold text-[var(--cyan)] tabular-nums mt-0.5">
+                {durStr}
+              </div>
+              <div className="mono text-[11px] text-[#8b93b8]">{summary.setsDone} series</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ ...APPLE_SPRING, delay: 0.09 }}
+              className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 shadow-[2px_2px_0_#000]"
+            >
+              <div className="pixel-title text-[7px] text-[#8b93b8]">⚖️ TONELAJE</div>
+              <div className="mono text-xl font-bold text-white tabular-nums mt-0.5">
+                {Math.round(summary.tonnage).toLocaleString("es")} kg
+              </div>
+              <div className="mono text-[11px] text-[var(--green)]">volumen movido</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ ...APPLE_SPRING, delay: 0.13 }}
+              className={`border-2 p-2.5 shadow-[2px_2px_0_#000] ${
+                summary.prs > 0 ? "border-[var(--red)] bg-[#3a151f]/50" : "border-[#2c3350] bg-[#10131f]"
+              }`}
+            >
+              <div className="pixel-title text-[7px] text-[#8b93b8]">⚡ PRs BATIDOS</div>
+              <div className={`mono text-xl font-bold tabular-nums mt-0.5 ${summary.prs > 0 ? "text-[var(--gold)]" : "text-white"}`}>
+                {summary.prs}
+              </div>
+              <div className="mono text-[11px] text-[#cbd5e1]">
+                {summary.prs > 0 ? "¡Récord roto!" : "Firmeza constante"}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ ...APPLE_SPRING, delay: 0.17 }}
+              className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 shadow-[2px_2px_0_#000]"
+            >
+              <div className="pixel-title text-[7px] text-[#8b93b8]">👹 DAÑO AL BOSS</div>
+              <div className="mono text-xl font-bold text-[var(--red)] tabular-nums mt-0.5">
+                {summary.bossDamage.toLocaleString("es")}
+              </div>
+              <div className="mono text-[11px] text-[#8b93b8]">
+                {summary.bonusPct > 0 ? `+${summary.bonusPct}% equipo` : "Daño directo"}
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Best lifts of the session */}
+          {summary.topExercises.length > 0 && (
+            <div className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 text-left space-y-1.5">
+              <div className="pixel-title text-[7.5px] text-[var(--gold)]">
+                📋 MARCAS DESTACADAS DE HOY
+              </div>
+              {summary.topExercises.map((t, idx) => (
+                <div key={idx} className="mono flex items-center justify-between text-sm border-t border-[#2c3350]/60 pt-1">
+                  <span className="truncate text-[#cbd5e1]">{t.name}</span>
+                  <span className="font-bold text-[var(--cyan)] shrink-0 ml-2">{t.bestSet}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Newly Unlocked Achievements banner */}
+          {summary.newlyUnlockedIds.length > 0 && (
+            <div className="border-2 border-[var(--gold)] bg-[#241e0a] p-2.5 text-left space-y-1.5 shadow-[2px_2px_0_#000]">
+              <div className="pixel-title text-[8px] text-[var(--gold)]">
+                🏅 ¡{summary.newlyUnlockedIds.length} {summary.newlyUnlockedIds.length === 1 ? "MEDALLA DESBLOQUEADA" : "MEDALLAS DESBLOQUEADAS"}!
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {summary.newlyUnlockedIds.map((id) => {
+                  const def = ACHIEVEMENT_MAP[id];
+                  if (!def) return null;
+                  return (
+                    <span key={id} className="mono text-xs border border-[var(--gold)]/60 bg-[#10131f] px-2 py-0.5 text-white">
+                      {def.icon} {def.title} (+{def.rewardGold}G)
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="pixel-title text-[6.5px] text-[#cbd5e1]">
+                COBRA TU ORO EN AVATAR → MEDALLAS DE CARRERA
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t-4 border-black bg-[#10131f] px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+          <PixelButton
+            variant="gold"
+            className="w-full py-3.5 text-[10px] font-bold shadow-[3px_3px_0_#000]"
+            onClick={onClose}
+          >
+            ✓ CONTINUAR AVENTURA
+          </PixelButton>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 

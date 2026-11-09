@@ -1,7 +1,8 @@
 "use client";
 import React, { useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { RaidBoss } from "@/lib/data";
+import { ITEM, RaidBoss } from "@/lib/data";
+import { drawPetSprite } from "@/lib/avatar";
 import { haptic, sfx } from "@/lib/fx";
 import { APPLE_TAP } from "./ui";
 
@@ -9,6 +10,8 @@ interface Props {
   boss: RaidBoss;
   hpRemaining: number;
   isDefeated: boolean;
+  petId?: string;
+  weaponId?: string;
   onHit?: () => void;
 }
 
@@ -28,12 +31,16 @@ export default function BossPixelCanvas({
   boss,
   hpRemaining,
   isDefeated,
+  petId,
+  weaponId,
   onHit,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hitShakeRef = useRef(0);
   const hitFlashRef = useRef(0);
   const particlesRef = useRef<Particle[]>([]);
+  const projectilesRef = useRef<{ x: number; y: number; vx: number; vy: number; color: string; size: number }[]>([]);
+  const petAttackAtRef = useRef(0);
 
   // Interactive tap on boss
   const handleTap = () => {
@@ -42,11 +49,26 @@ export default function BossPixelCanvas({
     sfx.bossRoar();
     haptic([30, 20, 50]);
 
-    // Spawn 16 impact burst particles
+    // Trigger pet bolt immediately on tap too!
+    if (petId && petId !== "pet_none" && !isDefeated) {
+      const petItem = ITEM[petId];
+      projectilesRef.current.push({
+        x: 42,
+        y: 132,
+        vx: 240,
+        vy: -55,
+        color: petItem?.color2 || petItem?.color || "#ffe14d",
+        size: 6,
+      });
+      sfx.petHit();
+    }
+
+    // Spawn impact burst particles + weapon slash spark
     const cv = canvasRef.current;
     if (cv) {
       const cx = cv.width / 2;
       const cy = cv.height / 2;
+      const wColor = weaponId && weaponId !== "weapon_none" ? (ITEM[weaponId]?.color2 || ITEM[weaponId]?.color || "#3df2ff") : boss.color;
       for (let i = 0; i < 18; i++) {
         const angle = Math.random() * Math.PI * 2;
         const spd = 60 + Math.random() * 120;
@@ -56,7 +78,7 @@ export default function BossPixelCanvas({
           vx: Math.cos(angle) * spd,
           vy: Math.sin(angle) * spd,
           size: Math.random() > 0.4 ? 4 : 3,
-          color: i % 2 === 0 ? boss.color : "#ffffff",
+          color: i % 3 === 0 ? wColor : i % 2 === 0 ? boss.color : "#ffffff",
           alpha: 1,
           life: 0,
           maxLife: 0.45 + Math.random() * 0.3,
@@ -165,6 +187,58 @@ export default function BossPixelCanvas({
       // Draw Boss Center Position
       const bx = cx + shakeX;
       const by = cy + shakeY + (isDefeated ? 14 : breath);
+
+      // Periodic pet attack against active Raid Boss
+      if (petId && petId !== "pet_none" && !isDefeated) {
+        if (animTime - petAttackAtRef.current > 2.4) {
+          petAttackAtRef.current = animTime;
+          const petItem = ITEM[petId];
+          projectilesRef.current.push({
+            x: 42,
+            y: 132,
+            vx: 210,
+            vy: -48,
+            color: petItem?.color2 || petItem?.color || "#ffe14d",
+            size: 5,
+          });
+        }
+      }
+
+      // Draw & update pet projectiles hitting the boss
+      for (let i = projectilesRef.current.length - 1; i >= 0; i--) {
+        const pr = projectilesRef.current[i];
+        pr.x += pr.vx * dt;
+        pr.y += pr.vy * dt;
+        px(pr.x - pr.size / 2, pr.y - pr.size / 2, pr.size + 3, pr.size + 3, "#000");
+        px(pr.x - pr.size / 2 + 1, pr.y - pr.size / 2 + 1, pr.size, pr.size, pr.color);
+
+        if (pr.x >= bx - 18) {
+          hitShakeRef.current = Math.max(hitShakeRef.current, 2.5);
+          hitFlashRef.current = Math.max(hitFlashRef.current, 2);
+          for (let k = 0; k < 8; k++) {
+            const ang = Math.random() * Math.PI * 2;
+            const sp = 50 + Math.random() * 80;
+            particlesRef.current.push({
+              x: pr.x,
+              y: pr.y,
+              vx: Math.cos(ang) * sp,
+              vy: Math.sin(ang) * sp,
+              size: 3,
+              color: k % 2 ? "#fff" : pr.color,
+              alpha: 1,
+              life: 0,
+              maxLife: 0.35,
+            });
+          }
+          projectilesRef.current.splice(i, 1);
+        }
+      }
+
+      // Render player's equipped Pet companion on left arena corner!
+      if (petId && petId !== "pet_none") {
+        const lunge = Math.max(0, 1 - (animTime - petAttackAtRef.current) * 4) * 6;
+        drawPetSprite(px, petId, 28 + lunge, 166, now, 2.5);
+      }
 
       const isFlash = hitFlashRef.current > 0;
 
@@ -417,7 +491,7 @@ export default function BossPixelCanvas({
 
     raf = requestAnimationFrame(render);
     return () => cancelAnimationFrame(raf);
-  }, [boss, isDefeated]);
+  }, [boss, isDefeated, petId]);
 
   return (
     <motion.div

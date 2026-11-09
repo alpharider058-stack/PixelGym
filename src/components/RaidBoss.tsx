@@ -4,21 +4,24 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame } from "@/lib/store";
-import { Quest, RaidBoss, getWeeklyBoss, getTimeUntilWeeklyReset, weekOfUtc } from "@/lib/data";
+import { Quest, RaidBoss, getCombatBonus, getWeeklyBoss, getTimeUntilWeeklyReset, weekOfUtc } from "@/lib/data";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { Bar, Panel, PixelButton, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import BossPixelCanvas from "./BossPixelCanvas";
 
 export default function RaidBossView() {
-  const { bossDmgDealt, bossClaimed, quests, claimQuest, claimBossVictory } = useGame(
+  const { bossDmgDealt, bossClaimed, equipped, quests, claimQuest, claimBossVictory } = useGame(
     useShallow((s) => ({
       bossDmgDealt: s.bossDmgDealt || 0,
       bossClaimed: !!s.bossDefeated,
+      equipped: s.equipped,
       quests: s.quests || [],
       claimQuest: s.claimQuest,
       claimBossVictory: s.claimBossVictory,
     }))
   );
+
+  const combat = getCombatBonus(equipped);
 
   const [victoryOpen, setVictoryOpen] = useState(false);
 
@@ -95,6 +98,8 @@ export default function RaidBossView() {
             boss={boss}
             hpRemaining={bossHpRemaining}
             isDefeated={bossDefeated}
+            petId={equipped?.pet}
+            weaponId={equipped?.weapon}
             onHit={() => {
               if (typeof window !== "undefined") {
                 fx({
@@ -162,6 +167,23 @@ export default function RaidBossView() {
               </div>
             </div>
           </div>
+
+          {(combat.weapon || combat.pet) ? (
+            <div className="w-full mt-1 border border-[var(--cyan)]/40 bg-[#0d2330]/70 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-1 text-left">
+              <div className="pixel-title text-[7px] text-[#cbd5e1] truncate">
+                {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
+                {combat.weapon && combat.pet ? " · " : ""}
+                {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
+              </div>
+              <span className="pixel-title text-[7px] text-[var(--green)] font-bold shrink-0">
+                +{combat.bossDmgPct}% DAÑO BOSS
+              </span>
+            </div>
+          ) : (
+            <div className="pixel-title text-[6.5px] text-[#636c8f] mt-1">
+              TIP: EQUIPA ARMAS Y MASCOTAS EN AVATAR → ARMERÍA PARA ATACAR AL BOSS
+            </div>
+          )}
         </motion.div>
 
         {/* VICTORY REWARD / CELEBRATION TRIGGER */}

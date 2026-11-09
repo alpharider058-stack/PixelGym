@@ -2,8 +2,9 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, isBodyweight, leagueOf, levelOf, weekOfUtc,
+  CRT_THEMES, CrtTheme, DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, isBodyweight, leagueOf, levelOf, weekOfUtc,
 } from "./data";
+import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from "./achievements";
 
 export interface SetEntry { id: string; kg: number; reps: number; done: boolean; pr?: boolean; rir?: number }
 export interface ExEntry { exId: string; sets: SetEntry[] }
@@ -11,6 +12,24 @@ export interface ActiveWorkout { routineId: string; name: string; startedAt: num
 export interface WorkoutLog {
   id: string; name: string; startedAt: number; endedAt: number;
   exercises: ExEntry[]; tonnage: number; exp: number; prs: number;
+  bossDamage?: number; totalGold?: number;
+}
+export interface WorkoutSummary {
+  id: string;
+  name: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  tonnage: number;
+  setsDone: number;
+  prs: number;
+  exp: number;
+  gold: number;
+  bossDamage: number;
+  bonusPct: number;
+  streak: number;
+  newlyUnlockedIds: string[];
+  topExercises: { name: string; bestSet: string }[];
 }
 
 export interface SetResult { exp: number; gold: number; pr: boolean; levelUp: number | null; strGain: number }
@@ -47,11 +66,24 @@ interface State {
   trophies: Trophy[];
   sound: boolean;
   focusMode: boolean;
+  maxStreak: number;
+  totalPrs: number;
+  bossKills: number;
+  claimedAchievements: string[];
+  activeTitle: string | null;
+  unlockedThemes: string[];
+  activeTheme: CrtTheme["id"];
+  lastWorkoutSummary: WorkoutSummary | null;
 
   setName: (n: string) => void;
   setBodyweight: (bw: number) => void;
   toggleSound: () => void;
   setFocusMode: (v: boolean) => void;
+  clearWorkoutSummary: () => void;
+  claimAchievement: (id: string) => number;
+  setActiveTitle: (title: string | null) => void;
+  buyTheme: (id: CrtTheme["id"]) => boolean;
+  setActiveTheme: (id: CrtTheme["id"]) => void;
   claimBossVictory: (gold: number, exp: number) => boolean;
   setRestTimeForEx: (exId: string, sec: number) => void;
   reorderActiveExercises: (fromIndex: number, toIndex: number) => void;
@@ -99,16 +131,71 @@ export const useGame = create<State>()(
       trophies: [],
       sound: true,
       focusMode: true,
+      maxStreak: 0,
+      totalPrs: 0,
+      bossKills: 0,
+      claimedAchievements: [],
+      activeTitle: null,
+      unlockedThemes: ["theme_default"],
+      activeTheme: "theme_default",
+      lastWorkoutSummary: null,
 
       setName: (name) => set({ name: name.slice(0, 12).toUpperCase() || "HÉROE" }),
       setBodyweight: (bw) => set({ bodyweight: Math.max(30, Math.min(250, Math.round(bw * 10) / 10)) }),
       toggleSound: () => set((s) => ({ sound: !s.sound })),
       setFocusMode: (v) => set({ focusMode: v }),
+      clearWorkoutSummary: () => set({ lastWorkoutSummary: null }),
+      claimAchievement: (id) => {
+        const s = get();
+        const def = ACHIEVEMENT_MAP[id];
+        if (!def || (s.claimedAchievements || []).includes(id)) return 0;
+        const ev = def.eval({
+          tonnage: s.tonnage,
+          streak: s.streak,
+          maxStreak: s.maxStreak || s.streak,
+          history: s.history || [],
+          owned: s.owned || [],
+          bossKills: s.bossKills || 0,
+          totalPrs: s.totalPrs || 0,
+        });
+        if (!ev.unlocked) return 0;
+        set({
+          claimedAchievements: [...(s.claimedAchievements || []), id],
+          gold: s.gold + def.rewardGold,
+        });
+        return def.rewardGold;
+      },
+      setActiveTitle: (title) => set({ activeTitle: title }),
+      buyTheme: (id) => {
+        const s = get();
+        const theme = CRT_THEMES.find((t) => t.id === id);
+        if (!theme) return false;
+        const ownedThemes = s.unlockedThemes || ["theme_default"];
+        if (ownedThemes.includes(id)) {
+          set({ activeTheme: id });
+          return true;
+        }
+        if (s.gold < theme.price || levelOf(s.exp) < theme.minLevel) return false;
+        set({
+          gold: s.gold - theme.price,
+          unlockedThemes: [...ownedThemes, id],
+          activeTheme: id,
+        });
+        return true;
+      },
+      setActiveTheme: (id) => {
+        const s = get();
+        const ownedThemes = s.unlockedThemes || ["theme_default"];
+        if (ownedThemes.includes(id) || id === "theme_default") {
+          set({ activeTheme: id });
+        }
+      },
       claimBossVictory: (gold, exp) => {
         const s = get();
         if (s.bossDefeated) return false;
         set({
           bossDefeated: true,
+          bossKills: (s.bossKills || 0) + 1,
           gold: s.gold + gold,
           exp: s.exp + exp,
           weeklyExp: s.weeklyExp + exp,
@@ -154,8 +241,15 @@ export const useGame = create<State>()(
             trophies: Array.isArray(d.trophies) ? d.trophies : get().trophies,
             customRoutines: Array.isArray(d.customRoutines) ? d.customRoutines : get().customRoutines,
             deletedRoutineIds: Array.isArray(d.deletedRoutineIds) ? d.deletedRoutineIds : get().deletedRoutineIds,
-            owned: Array.isArray(d.owned) ? d.owned : get().owned,
-            equipped: d.equipped ?? get().equipped,
+            owned: Array.isArray(d.owned) ? Array.from(new Set([...d.owned, ...Object.values(DEFAULT_EQUIP)])) : get().owned,
+            equipped: d.equipped ? { ...DEFAULT_EQUIP, ...d.equipped } : get().equipped,
+            claimedAchievements: Array.isArray(d.claimedAchievements) ? d.claimedAchievements : get().claimedAchievements,
+            activeTitle: typeof d.activeTitle === "string" || d.activeTitle === null ? d.activeTitle : get().activeTitle,
+            unlockedThemes: Array.isArray(d.unlockedThemes) ? Array.from(new Set(["theme_default", ...d.unlockedThemes])) : get().unlockedThemes,
+            activeTheme: typeof d.activeTheme === "string" ? (d.activeTheme as CrtTheme["id"]) : get().activeTheme,
+            maxStreak: typeof d.maxStreak === "number" ? d.maxStreak : get().maxStreak,
+            totalPrs: typeof d.totalPrs === "number" ? d.totalPrs : get().totalPrs,
+            bossKills: typeof d.bossKills === "number" ? d.bossKills : get().bossKills,
           });
           return true;
         } catch {
@@ -312,12 +406,15 @@ export const useGame = create<State>()(
         });
 
         const newPump = { ...(s.pumpUntil || zeroVol()), [ex.muscle]: Date.now() + 2 * 3600 * 1000 };
-        const newBossDmg = (s.bossDmgDealt || 0) + vol;
+        const { bossDmgPct } = getCombatBonus(s.equipped);
+        const bossHitDmg = Math.round(vol * (1 + bossDmgPct / 100));
+        const newBossDmg = (s.bossDmgDealt || 0) + bossHitDmg;
 
         set({
           exp: newExp,
           gold: s.gold + gold,
           tonnage: s.tonnage + vol,
+          totalPrs: (s.totalPrs || 0) + (pr ? 1 : 0),
           weeklyExp: (s.weekKey === wk ? s.weeklyExp : 0) + exp,
           weekKey: wk,
           muscleVol: { ...s.muscleVol, [ex.muscle]: Math.max(0, s.muscleVol[ex.muscle] + vol) },
@@ -351,19 +448,55 @@ export const useGame = create<State>()(
           .map((e) => ({ ...e, sets: e.sets.filter((x) => x.done) }))
           .filter((e) => e.sets.length);
         if (!done.length) { set({ active: null, restEndsAt: null }); return null; }
-        const tonnage = done.reduce((a, e) => {
+        const now = Date.now();
+        const bw = s.bodyweight || 75;
+        let tonnage = 0;
+        let setsDone = 0;
+        let prs = 0;
+        let setsExp = 0;
+        let setsGold = 0;
+        const topExercises: { name: string; bestSet: string }[] = [];
+
+        for (const e of done) {
           const ex = EX[e.exId];
           const isBw = isBodyweight(ex);
-          return a + e.sets.reduce((b, x) => b + (isBw ? (s.bodyweight || 75) + x.kg : x.kg) * x.reps, 0);
-        }, 0);
-        const today = dayKey(Date.now());
-        const yest = dayKey(Date.now() - 864e5);
-        const streak = s.lastDay === today ? s.streak : s.lastDay === yest || (s.lastDay && Date.now() - new Date(s.lastDay).getTime() < 3 * 864e5) ? s.streak + 1 : 1;
+          let bestVol = -1;
+          let bestStr = "";
+          for (const x of e.sets) {
+            setsDone++;
+            const lifted = isBw ? bw + x.kg : x.kg;
+            const vol = lifted * x.reps;
+            tonnage += vol;
+            const isPr = Boolean(x.pr);
+            if (isPr) prs++;
+            setsExp += Math.round(10 + vol / 25) + (isPr ? 100 : 0);
+            setsGold += 3 + Math.floor(x.reps / 4) + (isPr ? 25 : 0);
+            if (vol > bestVol) {
+              bestVol = vol;
+              bestStr = isBw ? (x.kg > 0 ? `+${x.kg}kg × ${x.reps}` : `PC × ${x.reps}`) : `${x.kg}kg × ${x.reps}`;
+            }
+          }
+          if (bestStr) {
+            topExercises.push({ name: ex?.name ?? e.exId, bestSet: bestStr });
+          }
+        }
+
+        const today = dayKey(now);
+        const yest = dayKey(now - 864e5);
+        const streak = s.lastDay === today ? s.streak : s.lastDay === yest || (s.lastDay && now - new Date(s.lastDay).getTime() < 3 * 864e5) ? s.streak + 1 : 1;
         const bonus = 50 + streak * 10;
+        const bonusGold = 20;
+        const { bossDmgPct } = getCombatBonus(s.equipped);
+        const bossDamage = Math.round(tonnage * (1 + bossDmgPct / 100));
+        const totalExp = setsExp + bonus;
+        const totalGold = setsGold + bonusGold;
+        const nextMaxStreak = Math.max(s.maxStreak || 0, streak);
+
         const log: WorkoutLog = {
-          id: uid(), name: s.active.name, startedAt: s.active.startedAt, endedAt: Date.now(),
-          exercises: done, tonnage, exp: bonus, prs: done.reduce((acc, e) => acc + e.sets.filter((x) => x.pr).length, 0),
+          id: uid(), name: s.active.name, startedAt: s.active.startedAt, endedAt: now,
+          exercises: done, tonnage, exp: bonus, prs, bossDamage, totalGold,
         };
+        const nextHistory = [log, ...s.history].slice(0, 300);
 
         const updatedQuests = (s.quests || generateDefaultQuests()).map((q) => {
           if (q.claimed) return q;
@@ -371,11 +504,44 @@ export const useGame = create<State>()(
           return q;
         });
 
+        const snapAfter = {
+          tonnage: s.tonnage,
+          streak,
+          maxStreak: nextMaxStreak,
+          history: nextHistory,
+          owned: s.owned || [],
+          bossKills: s.bossKills || 0,
+          totalPrs: s.totalPrs || 0,
+        };
+        const claimed = s.claimedAchievements || [];
+        const newlyUnlockedIds = ACHIEVEMENTS.filter(
+          (a) => !claimed.includes(a.id) && a.eval(snapAfter).unlocked
+        ).map((a) => a.id);
+
+        const summary: WorkoutSummary = {
+          id: log.id,
+          name: log.name,
+          startedAt: log.startedAt,
+          endedAt: now,
+          durationMs: Math.max(1000, now - log.startedAt),
+          tonnage,
+          setsDone,
+          prs,
+          exp: totalExp,
+          gold: totalGold,
+          bossDamage,
+          bonusPct: bossDmgPct,
+          streak,
+          newlyUnlockedIds,
+          topExercises: topExercises.slice(0, 4),
+        };
+
         set({
-          history: [log, ...s.history].slice(0, 300),
-          active: null, restEndsAt: null, streak, lastDay: today,
-          exp: s.exp + bonus, weeklyExp: s.weeklyExp + bonus, gold: s.gold + 20,
+          history: nextHistory,
+          active: null, restEndsAt: null, streak, maxStreak: nextMaxStreak, lastDay: today,
+          exp: s.exp + bonus, weeklyExp: s.weeklyExp + bonus, gold: s.gold + bonusGold,
           quests: updatedQuests,
+          lastWorkoutSummary: summary,
         });
         return log;
       },
@@ -539,6 +705,18 @@ export const useGame = create<State>()(
       name: "pixelgym-rpg-v1",
       storage: createJSONStorage(() => localStorage),
       skipHydration: true,
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
+        state.owned = Array.from(new Set([...(state.owned || []), ...Object.values(DEFAULT_EQUIP)]));
+        state.unlockedThemes = Array.from(new Set(["theme_default", ...(state.unlockedThemes || [])]));
+        state.activeTheme = state.activeTheme || "theme_default";
+        state.claimedAchievements = state.claimedAchievements || [];
+        state.maxStreak = Math.max(state.maxStreak || 0, state.streak || 0);
+        state.totalPrs = state.totalPrs || 0;
+        state.bossKills = state.bossKills || 0;
+        state.lastWorkoutSummary = null;
+      },
     },
   ),
 );

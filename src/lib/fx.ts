@@ -81,6 +81,13 @@ export const sfx = {
     tone(120, 0.12, "triangle", 0.18, 0, 50);
     noise(0.15, 0.12);
   },
+  petHit: () => {
+    tone(660, 0.06, "square", 0.05, 0, 990);
+    tone(320, 0.08, "triangle", 0.05, 0.04, 160);
+  },
+  achievement: () => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.15, "square", 0.07, i * 0.08));
+  },
 };
 
 export const haptic = (p: number | number[] = 8) => {

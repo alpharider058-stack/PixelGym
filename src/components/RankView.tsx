@@ -31,7 +31,7 @@ function makeRivals(): Rival[] {
     const lvl = 1 + Math.floor(power * 22);
     const tiers = Object.fromEntries((["chest", "back", "shoulders", "arms", "legs"] as Muscle[]).map((m) => [m, Math.min(4, Math.max(0, Math.round(power * 4 + (r() - 0.5) * 1.6)))])) as Record<Muscle, number>;
     const pick = (slot: Slot) => { const opts = ITEMS.filter((it) => it.slot === slot && it.minLevel <= lvl); return opts[Math.floor(r() * opts.length)]?.id ?? DEFAULT_EQUIP[slot]; };
-    const equipped: Equipped = { shirt: pick("shirt"), belt: pick("belt"), wrist: pick("wrist"), hair: pick("hair"), aura: pick("aura"), bg: pick("bg") };
+    const equipped: Equipped = { shirt: pick("shirt"), belt: pick("belt"), wrist: pick("wrist"), hair: pick("hair"), aura: pick("aura"), weapon: pick("weapon"), pet: pick("pet"), bg: pick("bg") };
     const jitter = rng(i * 31 + tick)();
     return {
       id: "r" + i, name, title: titleOf(lvl),
@@ -52,11 +52,12 @@ export default function RankView() {
   const [rivals, setRivals] = useState<Rival[]>(() => makeRivals());
   const myCfg = useMyAvatar();
   const st = useStats();
-  const { name, weekly, bodyweight } = useGame(
+  const { name, weekly, bodyweight, activeTitle } = useGame(
     useShallow((s) => ({
       name: s.name,
       weekly: s.weeklyExp,
       bodyweight: s.bodyweight ?? 75,
+      activeTitle: s.activeTitle,
     }))
   );
 
@@ -76,7 +77,7 @@ export default function RankView() {
     streak: st.sta,
     rel: +(st.str / (bodyweight || 75)).toFixed(2),
     cfg: myCfg,
-    title: titleOf(st.level),
+    title: activeTitle || titleOf(st.level),
   };
   const list = useMemo(() => [...rivals, me].sort((a, b) => b[sort] - a[sort]), [rivals, sort, me.weekly, me.tonnage, me.streak, me.rel, me.cfg, me.name]); // eslint-disable-line react-hooks/exhaustive-deps
   

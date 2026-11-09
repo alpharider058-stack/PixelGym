@@ -133,7 +133,7 @@ export const getTimeUntilWeeklyReset = (now: number = Date.now()): string => {
   return `${days}d ${remHours}h`;
 };
 
-export type Slot = "shirt" | "belt" | "wrist" | "hair" | "aura" | "bg";
+export type Slot = "shirt" | "belt" | "wrist" | "hair" | "aura" | "weapon" | "pet" | "bg";
 export interface Item {
   id: string;
   slot: Slot;
@@ -142,6 +142,8 @@ export interface Item {
   minLevel: number;
   color: string;
   color2?: string;
+  bossBonus?: number; // % extra damage to Raid Boss
+  desc?: string;
 }
 
 export const ITEMS: Item[] = [
@@ -164,6 +166,19 @@ export const ITEMS: Item[] = [
   { id: "aura_none", slot: "aura", name: "Sin Aura", price: 0, minLevel: 1, color: "" },
   { id: "aura_fire", slot: "aura", name: "Aura de Fuego", price: 800, minLevel: 7, color: "#ff7a1a", color2: "#ffd23f" },
   { id: "aura_bolt", slot: "aura", name: "Aura Relámpago", price: 1500, minLevel: 12, color: "#7df9ff", color2: "#ffffff" },
+  // Weapons
+  { id: "weapon_none", slot: "weapon", name: "Puños Desnudos", price: 0, minLevel: 1, color: "", bossBonus: 0 },
+  { id: "weapon_dumbbell", slot: "weapon", name: "Mancuerna Hierro", price: 160, minLevel: 2, color: "#94a3b8", color2: "#e2e8f0", bossBonus: 8, desc: "+8% daño vs Raid Boss" },
+  { id: "weapon_greatsword", slot: "weapon", name: "Espadón de Barra", price: 450, minLevel: 5, color: "#cbd5e1", color2: "#3df2ff", bossBonus: 15, desc: "+15% daño vs Raid Boss" },
+  { id: "weapon_axe", slot: "weapon", name: "Hacha Carmesí", price: 950, minLevel: 9, color: "#ff3f6c", color2: "#ffe14d", bossBonus: 22, desc: "+22% daño vs Raid Boss" },
+  { id: "weapon_hammer", slot: "weapon", name: "Martillo Titán", price: 1600, minLevel: 13, color: "#ffe14d", color2: "#3df2ff", bossBonus: 30, desc: "+30% daño vs Raid Boss" },
+  // Pets
+  { id: "pet_none", slot: "pet", name: "Sin Compañero", price: 0, minLevel: 1, color: "", bossBonus: 0 },
+  { id: "pet_owl", slot: "pet", name: "Búho Nocturno", price: 220, minLevel: 2, color: "#a78bfa", color2: "#ffe14d", bossBonus: 10, desc: "Dispara orbes arcanos · +10% Boss" },
+  { id: "pet_wolf", slot: "pet", name: "Lobo de Hierro", price: 550, minLevel: 4, color: "#94a3b8", color2: "#3df2ff", bossBonus: 16, desc: "Embestida férrea · +16% Boss" },
+  { id: "pet_dragon", slot: "pet", name: "Dragón Bebé", price: 1100, minLevel: 7, color: "#ff3f6c", color2: "#ff7a1a", bossBonus: 24, desc: "Aliento ígneo · +24% Boss" },
+  { id: "pet_golem", slot: "pet", name: "Espíritu de Disco", price: 1800, minLevel: 11, color: "#ffe14d", color2: "#7dff6a", bossBonus: 32, desc: "Onda olímpica · +32% Boss" },
+  // Backgrounds
   { id: "bg_garage", slot: "bg", name: "Garaje Oxidado", price: 0, minLevel: 1, color: "#2a1f1a", color2: "#5a3a2a" },
   { id: "bg_gym", slot: "bg", name: "Gym de Barrio", price: 200, minLevel: 3, color: "#1d2b3a", color2: "#3a5a7a" },
   { id: "bg_beach", slot: "bg", name: "Muscle Beach", price: 500, minLevel: 5, color: "#ff9a5a", color2: "#3a8ad6" },
@@ -178,8 +193,37 @@ export const DEFAULT_EQUIP: Equipped = {
   wrist: "wrist_none",
   hair: "hair_short",
   aura: "aura_none",
+  weapon: "weapon_none",
+  pet: "pet_none",
   bg: "bg_garage",
 };
+
+export function getCombatBonus(eq?: Partial<Equipped>): { bossDmgPct: number; weapon?: Item; pet?: Item } {
+  const weapon = eq?.weapon ? ITEM[eq.weapon] : undefined;
+  const pet = eq?.pet ? ITEM[eq.pet] : undefined;
+  return {
+    bossDmgPct: (weapon?.bossBonus ?? 0) + (pet?.bossBonus ?? 0),
+    weapon: weapon && weapon.id !== "weapon_none" ? weapon : undefined,
+    pet: pet && pet.id !== "pet_none" ? pet : undefined,
+  };
+}
+
+export interface CrtTheme {
+  id: "theme_default" | "theme_gameboy" | "theme_synthwave" | "theme_inferno" | "theme_cyberice";
+  name: string;
+  desc: string;
+  price: number;
+  minLevel: number;
+  preview: [string, string, string]; // [bg, accent1, accent2]
+}
+
+export const CRT_THEMES: CrtTheme[] = [
+  { id: "theme_default", name: "Arcade Clásico", desc: "Estética original azul medianoche & oro.", price: 0, minLevel: 1, preview: ["#0b0d17", "#ffe14d", "#3df2ff"] },
+  { id: "theme_gameboy", name: "GameBoy '89", desc: "Fósforo verde clásico portátil de 8-bit.", price: 350, minLevel: 2, preview: ["#0e2115", "#c8f53b", "#7dff6a"] },
+  { id: "theme_synthwave", name: "Neon Synthwave", desc: "Púrpura outrun, láser neón y cian.", price: 500, minLevel: 4, preview: ["#1a0933", "#00f5d4", "#ff2a85"] },
+  { id: "theme_inferno", name: "Inferno Red", desc: "Obsidiana ardiente, ámbar fundido y brasas.", price: 650, minLevel: 6, preview: ["#240c10", "#ffb703", "#ff5938"] },
+  { id: "theme_cyberice", name: "Cyber Ice", desc: "Glaciar digital cian de alta claridad.", price: 650, minLevel: 6, preview: ["#0b2232", "#a5f3fc", "#38bdf8"] },
+];
 
 export const LEAGUES = [
   { name: "BRONCE", min: 0, color: "#c47a3a" },
