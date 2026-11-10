@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
 import { SetEntry, WorkoutLog, WorkoutSummary, allRoutines, useGame } from "@/lib/store";
-import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, isBodyweight, titleOf } from "@/lib/data";
+import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, getWeeklyBoss, isBodyweight, titleOf } from "@/lib/data";
 import { ACHIEVEMENT_MAP } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
@@ -14,6 +14,7 @@ import { PixelButton, Panel, Bar, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE,
 import PlateCalculator from "./PlateCalculator";
 import RaidBossView from "./RaidBoss";
 import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
+import { BossEmblemCanvas } from "./PixelPreviews";
 
 const EMPTY_IDS: string[] = [];
 const EMPTY_ROUTINES: Routine[] = [];
@@ -58,6 +59,7 @@ function RoutinePicker() {
 
   const routines = allRoutines(custom, deletedRoutineIds);
   const firstRoutine = routines[0];
+  const weeklyBoss = getWeeklyBoss();
 
   return (
     <div className="flex flex-col gap-5">
@@ -145,13 +147,13 @@ function RoutinePicker() {
               fxAt(e.currentTarget, (x, y) => [{ kind: "burst", x, y, color: "#ffe14d", count: 14 }]);
             }
           }}
-          className={`relative flex h-[58px] items-center justify-between gap-1.5 px-2.5 border-2 text-left transition-colors ${
+          className={`relative flex h-[58px] items-center justify-between gap-1 px-2 border-2 text-left transition-colors ${
             tab === "routines"
               ? "border-black bg-gradient-to-b from-[#ffe14d] via-[#facc15] to-[#d4a017] text-black shadow-[3px_3px_0_#000]"
               : "border-[#2c3350] bg-[#141826] text-[#8b93b8] hover:border-[#4a5280] shadow-[2px_2px_0_#000]"
           }`}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span className="flex h-7 w-7 items-center justify-center border border-black/40 bg-black/15 text-sm shrink-0">
               ⚔
             </span>
@@ -164,13 +166,11 @@ function RoutinePicker() {
               </div>
             </div>
           </div>
-          <div className="w-11 flex items-center justify-end shrink-0">
-            {tab === "routines" && (
-              <span className="pixel-title text-[6.5px] border border-black/30 bg-black/20 px-1 py-0.5 text-black font-bold">
-                ACTIVO
-              </span>
-            )}
-          </div>
+          {tab === "routines" && (
+            <span className="hidden min-[420px]:inline pixel-title text-[6px] border border-black/30 bg-black/20 px-1 py-0.5 text-black font-bold shrink-0">
+              ACTIVO
+            </span>
+          )}
         </motion.button>
 
         <motion.button
@@ -187,15 +187,15 @@ function RoutinePicker() {
               ]);
             }
           }}
-          className={`relative flex h-[58px] items-center justify-between gap-1.5 px-2.5 border-2 text-left transition-colors ${
+          className={`relative flex h-[58px] items-center justify-between gap-1 px-2 border-2 text-left transition-colors ${
             tab === "boss"
               ? "border-black bg-gradient-to-b from-[#ff3f6c] via-[#e11d48] to-[#9f1239] text-white shadow-[3px_3px_0_#000]"
               : "border-[#3d1822] bg-[#160d13] text-[#8b93b8] hover:border-[#ff3f6c] shadow-[2px_2px_0_#000]"
           }`}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="flex h-7 w-7 items-center justify-center border border-black/40 bg-black/20 text-sm shrink-0">
-              👹
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="flex h-7 w-7 items-center justify-center border border-black/40 bg-[#0b0d17]/75 shrink-0">
+              <BossEmblemCanvas theme={weeklyBoss.theme} size={22} />
             </span>
             <div className="min-w-0">
               <div className={`pixel-title text-[8.5px] leading-tight font-bold truncate ${tab === "boss" ? "text-white" : "text-[#ff6b8b]"}`}>
@@ -206,15 +206,13 @@ function RoutinePicker() {
               </div>
             </div>
           </div>
-          <div className="w-11 flex items-center justify-end shrink-0">
-            {tab === "boss" ? (
-              <span className="pixel-title text-[6.5px] border border-white/30 bg-black/30 px-1 py-0.5 text-white font-bold">
-                ACTIVO
-              </span>
-            ) : (
-              <span className="h-2 w-2 rounded-full bg-[var(--red)] animate-pulse" />
-            )}
-          </div>
+          {tab === "boss" ? (
+            <span className="hidden min-[420px]:inline pixel-title text-[6px] border border-white/30 bg-black/30 px-1 py-0.5 text-white font-bold shrink-0">
+              ACTIVO
+            </span>
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-[var(--red)] animate-pulse shrink-0 mr-1" />
+          )}
         </motion.button>
       </div>
 
@@ -2144,7 +2142,10 @@ function WorkoutSummaryModal({
               transition={{ ...APPLE_SPRING, delay: 0.17 }}
               className="border-2 border-[#2c3350] bg-[#10131f] p-2.5 shadow-[2px_2px_0_#000]"
             >
-              <div className="pixel-title text-[7px] text-[#8b93b8]">👹 DAÑO AL BOSS</div>
+              <div className="pixel-title text-[7px] text-[#8b93b8] flex items-center justify-center gap-1">
+                <BossEmblemCanvas theme={getWeeklyBoss().theme} size={16} />
+                <span>DAÑO AL BOSS</span>
+              </div>
               <div className="mono text-xl font-bold text-[var(--red)] tabular-nums mt-0.5">
                 {summary.bossDamage.toLocaleString("es")}
               </div>

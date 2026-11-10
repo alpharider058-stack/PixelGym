@@ -8,6 +8,7 @@ import { Quest, RaidBoss, getCombatBonus, getHoursIntoUtcWeek, getWeeklyBoss, ge
 import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { Bar, Panel, PixelButton, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import BossPixelCanvas from "./BossPixelCanvas";
+import { BossEmblemCanvas, PetPreviewCanvas, WeaponPreviewCanvas } from "./PixelPreviews";
 
 const EMPTY_QUESTS: Quest[] = [];
 
@@ -77,10 +78,17 @@ export default function RaidBossView() {
       >
         <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2 mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xl animate-pulse">{bossDefeated ? "🏆" : boss.icon}</span>
+            <span className="flex h-9 w-10 items-center justify-center border border-[#2c3350] bg-[#0b0d17] shrink-0">
+              <BossEmblemCanvas theme={boss.theme} isDefeated={bossDefeated} size={28} />
+            </span>
             <div>
-              <div className="pixel-title text-[9px]" style={{ color: bossDefeated ? "#7dff6a" : boss.color }}>
-                {bossDefeated ? "RAID BOSS DERROTADO" : "RAID BOSS SEMANAL"}
+              <div className="pixel-title text-[9px] flex items-center gap-1.5" style={{ color: bossDefeated ? "#7dff6a" : boss.color }}>
+                <span>{bossDefeated ? "RAID BOSS DERROTADO" : "RAID BOSS SEMANAL"}</span>
+                {!bossDefeated && bossHpRemaining < boss.totalHp * 0.5 && (
+                  <span className="border border-black bg-[#ff3f6c] px-1 py-0.5 text-[6.5px] font-bold text-white animate-pulse">
+                    ⚡ FURIOSO
+                  </span>
+                )}
               </div>
               <div className="pixel-title text-[7px] text-[#8b93b8]">EVENTO COOPERATIVO GLOBAL</div>
             </div>
@@ -171,11 +179,19 @@ export default function RaidBossView() {
           </div>
 
           {(combat.weapon || combat.pet) ? (
-            <div className="w-full mt-1 border border-[var(--cyan)]/40 bg-[#0d2330]/70 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-1 text-left">
-              <div className="pixel-title text-[7px] text-[#cbd5e1] truncate">
-                {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
-                {combat.weapon && combat.pet ? " · " : ""}
-                {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
+            <div className="w-full mt-1 border border-[var(--cyan)]/40 bg-[#0d2330]/70 px-2.5 py-1.5 flex items-center justify-between gap-2 text-left">
+              <div className="flex items-center gap-2 min-w-0">
+                {combat.weapon && (
+                  <WeaponPreviewCanvas weaponId={combat.weapon.id} size={20} />
+                )}
+                {combat.pet && (
+                  <PetPreviewCanvas petId={combat.pet.id} size={24} animate={false} />
+                )}
+                <div className="pixel-title text-[7px] text-[#cbd5e1] truncate">
+                  {combat.weapon ? combat.weapon.name.toUpperCase() : ""}
+                  {combat.weapon && combat.pet ? " · " : ""}
+                  {combat.pet ? combat.pet.name.toUpperCase() : ""}
+                </div>
               </div>
               <span className="pixel-title text-[7px] text-[var(--green)] font-bold shrink-0">
                 +{combat.bossDmgPct}% DAÑO BOSS
@@ -403,8 +419,8 @@ function BossVictoryModal({
           >
             🏆
           </motion.span>
-          <span className="absolute -left-3 -top-3 flex h-9 w-9 items-center justify-center border-2 border-black bg-[#161a2b] text-xl shadow-[2px_2px_0_#000] grayscale opacity-85">
-            {boss.icon}
+          <span className="absolute -left-3 -top-3 flex h-10 w-10 items-center justify-center border-2 border-black bg-[#161a2b] shadow-[2px_2px_0_#000]">
+            <BossEmblemCanvas theme={boss.theme} isDefeated size={26} />
           </span>
           <span className="pixel-title absolute -bottom-2.5 border-2 border-black bg-[#7dff6a] px-2 py-0.5 text-[7.5px] font-bold text-black shadow-[2px_2px_0_#000]">
             DERROTADO

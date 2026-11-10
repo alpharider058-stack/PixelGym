@@ -12,6 +12,7 @@ import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE 
 import { Sheet } from "./GymView";
 import MuscleHeatmap from "./MuscleHeatmap";
 import PushPanel from "./PushPanel";
+import { PetPreviewCanvas, WeaponPreviewCanvas } from "./PixelPreviews";
 
 const EMPTY_TROPHIES: Trophy[] = [];
 const EMPTY_HISTORY: WorkoutLog[] = [];
@@ -215,13 +216,17 @@ export default function AvatarView() {
               </div>
 
               {(combat.weapon || combat.pet) && (
-                <div className="w-full border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5 flex items-center justify-between text-[7px] pixel-title">
-                  <span className="text-[#cbd5e1] truncate">
-                    {combat.weapon ? `⚔ ${combat.weapon.name.toUpperCase()}` : ""}
-                    {combat.weapon && combat.pet ? " · " : ""}
-                    {combat.pet ? `🐾 ${combat.pet.name.toUpperCase()}` : ""}
-                  </span>
-                  <span className="text-[var(--green)] font-bold shrink-0 ml-2">+{combat.bossDmgPct}% BOSS</span>
+                <div className="w-full border border-[#2c3350] bg-[#10131f] px-2.5 py-1.5 flex items-center justify-between gap-2 text-[7px] pixel-title">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {combat.weapon && <WeaponPreviewCanvas weaponId={combat.weapon.id} size={18} />}
+                    {combat.pet && <PetPreviewCanvas petId={combat.pet.id} size={22} animate={false} />}
+                    <span className="text-[#cbd5e1] truncate">
+                      {combat.weapon ? combat.weapon.name.toUpperCase() : ""}
+                      {combat.weapon && combat.pet ? " · " : ""}
+                      {combat.pet ? combat.pet.name.toUpperCase() : ""}
+                    </span>
+                  </div>
+                  <span className="text-[var(--green)] font-bold shrink-0 ml-1">+{combat.bossDmgPct}% BOSS</span>
                 </div>
               )}
 
@@ -806,8 +811,18 @@ function Armory({ level }: { level: number }) {
               }}
               className={`flex flex-col items-start gap-1 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"} ${locked && !has ? "opacity-50" : ""}`}
             >
-              <span className="flex items-center gap-2">
-                <span className="pixelated inline-block h-4 w-4 shrink-0 border-2 border-black" style={{ background: it.color || "repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)" }} />
+              <span className="flex w-full items-center gap-2.5">
+                {slot === "pet" ? (
+                  <span className="flex h-12 w-14 shrink-0 items-center justify-center border-2 border-black bg-[#0b0d17] shadow-[inset_0_0_8px_rgba(0,0,0,0.85)]">
+                    <PetPreviewCanvas petId={it.id} size={46} animate={on || has || !locked} />
+                  </span>
+                ) : slot === "weapon" ? (
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-black bg-[#0b0d17]">
+                    <WeaponPreviewCanvas weaponId={it.id} size={32} />
+                  </span>
+                ) : (
+                  <span className="pixelated inline-block h-4 w-4 shrink-0 border-2 border-black" style={{ background: it.color || "repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)" }} />
+                )}
                 <span className="mono text-sm leading-tight text-white">{it.name}</span>
               </span>
               {it.desc && (
