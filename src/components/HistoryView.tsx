@@ -17,16 +17,20 @@ const HISTORY_TABS: { id: HistoryTab; label: string; icon: string }[] = [
   { id: "backup", label: "BACKUP", icon: "💾" },
 ];
 
+const EMPTY_HISTORY: WorkoutLog[] = [];
+const EMPTY_BEST: Record<string, { e1rm: number; vol: number }> = {};
+const EMPTY_ROUTINES_COUNT: unknown[] = [];
+
 const normText = (s: string) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export default function HistoryView() {
   const { history, best, bodyweight, customRoutinesCount } = useGame(
     useShallow((s) => ({
-      history: s.history || [],
-      best: s.best || {},
+      history: s.history ?? EMPTY_HISTORY,
+      best: s.best ?? EMPTY_BEST,
       bodyweight: s.bodyweight ?? 75,
-      customRoutinesCount: (s.customRoutines || []).length,
+      customRoutinesCount: (s.customRoutines ?? EMPTY_ROUTINES_COUNT).length,
     }))
   );
   const del = useGame((s) => s.deleteLog);

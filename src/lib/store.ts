@@ -401,11 +401,14 @@ export const useGame = create<State>()(
 
       startWorkout: (r) => {
         const st = get();
+        const exList = Array.isArray(r.exercises) ? r.exercises : [];
         set({
           focusMode: true,
           active: {
-            routineId: r.id, name: r.name, startedAt: Date.now(),
-            exercises: r.exercises.map((exId) => ({ id: uid(), exId, sets: [mkSet(st, exId)] })),
+            routineId: r.id,
+            name: r.name,
+            startedAt: Date.now(),
+            exercises: exList.map((exId) => ({ id: uid(), exId, sets: [mkSet(st, exId)] })),
           },
         });
       },
@@ -927,23 +930,71 @@ export const useGame = create<State>()(
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        state.name = typeof state.name === "string" && state.name ? state.name : "HÉROE";
+        state.bodyweight =
+          typeof state.bodyweight === "number" && Number.isFinite(state.bodyweight) && state.bodyweight > 0
+            ? state.bodyweight
+            : 75;
         state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
-        state.owned = Array.from(new Set([...(state.owned || []), ...Object.values(DEFAULT_EQUIP)]));
+        state.owned = Array.from(
+          new Set([...(Array.isArray(state.owned) ? state.owned : []), ...Object.values(DEFAULT_EQUIP)])
+        );
         state.muscleVol = { ...zeroVol(), ...(state.muscleVol || {}) };
         state.pumpUntil = { ...zeroVol(), ...(state.pumpUntil || {}) };
         state.pushPrefs = { ...DEFAULT_PUSH_PREFS, ...(state.pushPrefs || {}) };
-        state.claimedAchievements = state.claimedAchievements || [];
+        state.history = Array.isArray(state.history) ? state.history : [];
+        state.best = state.best && typeof state.best === "object" ? state.best : {};
+        state.lastSet = state.lastSet && typeof state.lastSet === "object" ? state.lastSet : {};
+        state.restTimeByEx =
+          state.restTimeByEx && typeof state.restTimeByEx === "object" ? state.restTimeByEx : {};
+        state.quests = Array.isArray(state.quests) && state.quests.length ? state.quests : generateDefaultQuests();
+        state.customRoutines = Array.isArray(state.customRoutines) ? state.customRoutines : [];
+        state.deletedRoutineIds = Array.isArray(state.deletedRoutineIds) ? state.deletedRoutineIds : [];
+        state.trophies = Array.isArray(state.trophies) ? state.trophies : [];
+        state.claimedAchievements = Array.isArray(state.claimedAchievements) ? state.claimedAchievements : [];
+        state.focusMode = typeof state.focusMode === "boolean" ? state.focusMode : true;
+        state.sound = typeof state.sound === "boolean" ? state.sound : true;
         state.maxStreak = Math.max(state.maxStreak || 0, state.streak || 0);
         state.totalPrs = state.totalPrs || 0;
         state.bossKills = state.bossKills || 0;
         state.lastWorkoutSummary = null;
-        if (state.active?.exercises) {
-          state.active.exercises = state.active.exercises.map((e) => ({
-            ...e,
-            id: e.id || uid(),
-          }));
+        if (state.active) {
+          if (typeof state.active !== "object" || !Array.isArray(state.active.exercises)) {
+            state.active = null;
+          } else {
+            state.active = {
+              routineId: typeof state.active.routineId === "string" ? state.active.routineId : "recovered",
+              name: typeof state.active.name === "string" && state.active.name ? state.active.name : "ENTRENO",
+              startedAt:
+                typeof state.active.startedAt === "number" && Number.isFinite(state.active.startedAt)
+                  ? state.active.startedAt
+                  : Date.now(),
+              exercises: state.active.exercises
+                .filter((e): e is ExEntry => Boolean(e && typeof e === "object" && typeof e.exId === "string"))
+                .map((e) => ({
+                  ...e,
+                  id: e.id || uid(),
+                  sets: Array.isArray(e.sets)
+                    ? e.sets
+                        .filter((st) => Boolean(st && typeof st === "object"))
+                        .map((st) => ({
+                          ...st,
+                          id: st.id || uid(),
+                          kg: typeof st.kg === "number" && Number.isFinite(st.kg) ? Math.max(0, st.kg) : 0,
+                          reps: typeof st.reps === "number" && Number.isFinite(st.reps) ? Math.max(0, st.reps) : 0,
+                          done: Boolean(st.done),
+                        }))
+                    : [mkSet(state, e.exId)],
+                })),
+            };
+          }
         }
-        if (state.restEndsAt && Date.now() - state.restEndsAt > 60000) {
+        if (
+          state.restEndsAt !== null &&
+          (typeof state.restEndsAt !== "number" ||
+            !Number.isFinite(state.restEndsAt) ||
+            Date.now() - state.restEndsAt > 60000)
+        ) {
           state.restEndsAt = null;
           state.restExName = null;
         }

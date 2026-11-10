@@ -2,11 +2,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
-import { useGame } from "@/lib/store";
+import { useGame, WorkoutLog } from "@/lib/store";
 import { Muscle, TEMPLATES } from "@/lib/data";
 import { calculateMuscleHeatmap, MuscleHeatmapData } from "@/lib/heatmap";
 import { APPLE_BOUNCE, APPLE_SPRING, APPLE_TAP, Panel, PixelButton } from "./ui";
 import { sfx, haptic } from "@/lib/fx";
+
+const EMPTY_HISTORY: WorkoutLog[] = [];
 
 interface Props {
   onClose?: () => void;
@@ -16,7 +18,7 @@ interface Props {
 export default function MuscleHeatmap({ onClose, compact = false }: Props) {
   const { history, bodyweight } = useGame(
     useShallow((s) => ({
-      history: s.history || [],
+      history: s.history ?? EMPTY_HISTORY,
       bodyweight: s.bodyweight ?? 75,
     }))
   );

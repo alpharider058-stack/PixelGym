@@ -7,34 +7,42 @@ export const setSoundEnabled = (v: boolean) => { enabled = v; };
 
 function ac() {
   if (typeof window === "undefined") return null;
-  if (!ctx) {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return null;
-    ctx = new AC();
+  try {
+    if (!ctx) {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+    }
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    return ctx;
+  } catch {
+    return null;
   }
-  if (ctx.state === "suspended") ctx.resume();
-  return ctx;
 }
 
 function tone(freq: number, dur: number, type: OscillatorType = "square", vol = 0.08, delay = 0, slideTo?: number) {
   const c = ac(); if (!c || !enabled) return;
-  const t = c.currentTime + delay;
-  const o = c.createOscillator(); const g = c.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-  g.gain.setValueAtTime(vol, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(c.destination);
-  o.start(t); o.stop(t + dur + 0.02);
+  try {
+    const t = c.currentTime + delay;
+    const o = c.createOscillator(); const g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  } catch {}
 }
 
 function noise(dur: number, vol = 0.06) {
   const c = ac(); if (!c || !enabled) return;
-  const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
-  const s = c.createBufferSource(); const g = c.createGain();
-  g.gain.value = vol; s.buffer = buf; s.connect(g).connect(c.destination); s.start();
+  try {
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const s = c.createBufferSource(); const g = c.createGain();
+    g.gain.value = vol; s.buffer = buf; s.connect(g).connect(c.destination); s.start();
+  } catch {}
 }
 
 export const sfx = {

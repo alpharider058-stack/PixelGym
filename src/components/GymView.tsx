@@ -2,8 +2,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useDragControls } from "motion/react";
-import { useShallow } from "zustand/react/shallow";
-import { WorkoutSummary, allRoutines, useGame } from "@/lib/store";
+import { SetEntry, WorkoutLog, WorkoutSummary, allRoutines, useGame } from "@/lib/store";
 import { EX, EXERCISES, MUSCLE_LABEL, Routine, defaultRestForExercise, expForLevel, isBodyweight, titleOf } from "@/lib/data";
 import { ACHIEVEMENT_MAP } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
@@ -15,6 +14,12 @@ import { PixelButton, Panel, Bar, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE,
 import PlateCalculator from "./PlateCalculator";
 import RaidBossView from "./RaidBoss";
 import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
+
+const EMPTY_IDS: string[] = [];
+const EMPTY_ROUTINES: Routine[] = [];
+const EMPTY_HISTORY: WorkoutLog[] = [];
+const EMPTY_REST_MAP: Record<string, number> = {};
+const EMPTY_SETS: SetEntry[] = [];
 
 export default function GymView() {
   const active = useGame((s) => !!s.active);
@@ -32,8 +37,8 @@ export default function GymView() {
 
 /* ---------------- Routine picker ---------------- */
 function RoutinePicker() {
-  const custom = useGame((s) => s.customRoutines);
-  const deletedRoutineIds = useGame((s) => s.deletedRoutineIds || []);
+  const custom = useGame((s) => s.customRoutines ?? EMPTY_ROUTINES);
+  const deletedRoutineIds = useGame((s) => s.deletedRoutineIds ?? EMPTY_IDS);
   const restoreDefaultRoutines = useGame((s) => s.restoreDefaultRoutines);
   const start = useGame((s) => s.startWorkout);
   const del = useGame((s) => s.deleteRoutine);
@@ -780,34 +785,7 @@ export function Sheet({ children, onClose, title, footer }: { children: React.Re
 
 /* ---------------- Active logger ---------------- */
 function ActiveLogger() {
-  const { name, startedAt, exerciseKeys, totalSetsCount, doneSetsCount, completedKeys } = useGame(
-    useShallow((s) => {
-      const exs = s.active!.exercises;
-      const keys = exs.map((e, idx) => e.id || `${e.exId}-${idx}`);
-      let totalSets = 0;
-      let doneSets = 0;
-      const completed: string[] = [];
-      exs.forEach((e, idx) => {
-        totalSets += e.sets.length;
-        let exDone = 0;
-        for (const st of e.sets) {
-          if (st.done) exDone++;
-        }
-        doneSets += exDone;
-        if (e.sets.length > 0 && exDone === e.sets.length) {
-          completed.push(keys[idx]);
-        }
-      });
-      return {
-        name: s.active!.name,
-        startedAt: s.active!.startedAt,
-        exerciseKeys: keys,
-        totalSetsCount: totalSets,
-        doneSetsCount: doneSets,
-        completedKeys: completed,
-      };
-    })
-  );
+  const active = useGame((s) => s.active);
   const focusMode = useGame((s) => s.focusMode);
   const setFocusMode = useGame((s) => s.setFocusMode);
   const finish = useGame((s) => s.finishWorkout);
@@ -818,6 +796,44 @@ function ActiveLogger() {
   const [abandonModal, setAbandonModal] = useState(false);
   const [emptyFinishModal, setEmptyFinishModal] = useState(false);
   const [collapsedIds, setCollapsedIds] = useState<Record<string, boolean>>({});
+
+  const { name, startedAt, exerciseKeys, totalSetsCount, doneSetsCount, completedKeys } = useMemo(() => {
+    if (!active || !Array.isArray(active.exercises)) {
+      return {
+        name: "ENTRENO",
+        startedAt: Date.now(),
+        exerciseKeys: EMPTY_IDS,
+        totalSetsCount: 0,
+        doneSetsCount: 0,
+        completedKeys: EMPTY_IDS,
+      };
+    }
+    const exs = active.exercises;
+    const keys = exs.map((e, idx) => e.id || `${e.exId}-${idx}`);
+    let totalSets = 0;
+    let doneSets = 0;
+    const completed: string[] = [];
+    exs.forEach((e, idx) => {
+      const sets = Array.isArray(e.sets) ? e.sets : EMPTY_SETS;
+      totalSets += sets.length;
+      let exDone = 0;
+      for (const st of sets) {
+        if (st.done) exDone++;
+      }
+      doneSets += exDone;
+      if (sets.length > 0 && exDone === sets.length) {
+        completed.push(keys[idx]);
+      }
+    });
+    return {
+      name: active.name || "ENTRENO",
+      startedAt: typeof active.startedAt === "number" ? active.startedAt : Date.now(),
+      exerciseKeys: keys,
+      totalSetsCount: totalSets,
+      doneSetsCount: doneSets,
+      completedKeys: completed,
+    };
+  }, [active]);
 
   // Wake Lock API: Keep screen awake during workouts
   useEffect(() => {
@@ -839,6 +855,8 @@ function ActiveLogger() {
       if (sentinel) sentinel.release().catch(() => {});
     };
   }, []);
+
+  if (!active) return null;
 
   const handleFinish = (el?: HTMLElement) => {
     const log = finish();
@@ -1079,7 +1097,7 @@ function Elapsed({ since }: { since: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const tick = () => {
-      const s = Math.floor((Date.now() - since) / 1000);
+      const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
       if (ref.current) ref.current.textContent = `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
     };
     tick(); const id = setInterval(tick, 1000); return () => clearInterval(id);
@@ -1098,37 +1116,38 @@ const ExerciseCard = memo(function ExerciseCard({
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
-  const entry = useGame((s) => s.active?.exercises[index]);
-  const best = useGame((s) => entry ? s.best[entry.exId] : undefined);
+  const entry = useGame((s) => s.active?.exercises?.[index]);
+  const best = useGame((s) => (entry && s.best ? s.best[entry.exId] : undefined));
   const bodyweight = useGame((s) => s.bodyweight || 75);
-  const history = useGame((s) => s.history || []);
+  const history = useGame((s) => s.history ?? EMPTY_HISTORY);
   const addSet = useGame((s) => s.addSet);
   const removeEx = useGame((s) => s.removeExercise);
   const reorder = useGame((s) => s.reorderActiveExercises);
-  const restTimeByEx = useGame((s) => s.restTimeByEx);
+  const restTimeByEx = useGame((s) => s.restTimeByEx ?? EMPTY_REST_MAP);
   const setRestTimeForEx = useGame((s) => s.setRestTimeForEx);
   const [calcKg, setCalcKg] = useState<number | null>(null);
 
-  const firstPending = entry?.sets.findIndex((s) => !s.done) ?? -1;
-  const allDone = Boolean(entry && entry.sets.length > 0 && firstPending === -1);
-  const pendingSetIndex = firstPending >= 0 ? firstPending : Math.max(0, (entry?.sets.length ?? 1) - 1);
-  const currentTargetSet = entry?.sets[pendingSetIndex] ?? entry?.sets[0];
+  const entrySets = Array.isArray(entry?.sets) ? entry.sets : EMPTY_SETS;
+  const firstPending = entrySets.findIndex((s) => !s.done);
+  const allDone = Boolean(entry && entrySets.length > 0 && firstPending === -1);
+  const pendingSetIndex = firstPending >= 0 ? firstPending : Math.max(0, entrySets.length - 1);
+  const currentTargetSet = entrySets[pendingSetIndex] ?? entrySets[0];
   const overloadAdvice = useMemo(
     () => entry ? getSetOverloadAdvice(history, entry.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps) : null,
-    [history, entry?.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps]
+    [history, entry, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps]
   );
 
   if (!entry) return null;
   const ex = EX[entry.exId];
   const isBw = isBodyweight(ex);
   const currentRest = restTimeByEx[entry.exId] ?? defaultRestForExercise(ex);
-  const doneCount = entry.sets.filter((s) => s.done).length;
-  const setCount = entry.sets.length;
-  const completedVol = entry.sets.reduce(
+  const doneCount = entrySets.filter((s) => s.done).length;
+  const setCount = entrySets.length;
+  const completedVol = entrySets.reduce(
     (acc, st) => (st.done ? acc + (isBw ? bodyweight + st.kg : st.kg) * st.reps : acc),
     0
   );
-  const prsInCard = entry.sets.filter((st) => st.done && st.pr).length;
+  const prsInCard = entrySets.filter((st) => st.done && st.pr).length;
 
   const cycleRest = () => {
     const opts = [60, 90, 120, 180, 240];
@@ -1137,7 +1156,7 @@ const ExerciseCard = memo(function ExerciseCard({
     sfx.tick();
   };
 
-  const lastKg = entry.sets[entry.sets.length - 1]?.kg ?? ex?.defKg ?? 60;
+  const lastKg = entrySets[entrySets.length - 1]?.kg ?? ex?.defKg ?? 60;
 
   return (
     <motion.div layout="position" transition={SPRING} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -1303,7 +1322,7 @@ const ExerciseCard = memo(function ExerciseCard({
             </div>
             <div className="space-y-2">
               <AnimatePresence initial={false}>
-                {entry.sets.map((s, j) => <SetRow key={s.id} i={index} j={j} />)}
+                {entrySets.map((s, j) => <SetRow key={s.id} i={index} j={j} />)}
               </AnimatePresence>
             </div>
             <PixelButton variant="ghost" className="mt-2 w-full py-2.5 text-[9px]" onClick={() => { addSet(index); sfx.tick(); }}>＋ SERIE (auto-fill)</PixelButton>
@@ -1319,10 +1338,10 @@ const ExerciseCard = memo(function ExerciseCard({
 });
 
 const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
-  const s = useGame((st) => st.active?.exercises[i]?.sets[j]);
-  const exId = useGame((st) => st.active?.exercises[i]?.exId);
-  const history = useGame((st) => st.history || []);
-  const restTimeByEx = useGame((st) => st.restTimeByEx);
+  const s = useGame((st) => st.active?.exercises?.[i]?.sets?.[j]);
+  const exId = useGame((st) => st.active?.exercises?.[i]?.exId);
+  const history = useGame((st) => st.history ?? EMPTY_HISTORY);
+  const restTimeByEx = useGame((st) => st.restTimeByEx ?? EMPTY_REST_MAP);
   const update = useGame((st) => st.updateSet);
   const complete = useGame((st) => st.completeSet);
   const remove = useGame((st) => st.removeSet);
@@ -1729,7 +1748,7 @@ export function RestTimer({
 
     if (!endsAt) {
       clearSilentRestMedia();
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: "CANCEL_REST_TIMER" });
       }
       if (remoteScheduledRef.current && prev && Date.now() - prev < 4000) {
@@ -1749,7 +1768,7 @@ export function RestTimer({
     let effectAlive = true;
 
     const postSwTimer = (notifyAt: number) => {
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "START_REST_TIMER",
           endsAt,
@@ -1884,7 +1903,7 @@ export function RestTimer({
         if (ref.current) ref.current.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
         if (sec <= 3) sfx.tick();
       }
-      if (barRef.current) barRef.current.style.transform = `scaleX(${left / total})`;
+      if (barRef.current) barRef.current.style.transform = `scaleX(${Math.max(0, Math.min(1, left / total))})`;
       raf = requestAnimationFrame(loop);
     };
 
@@ -1907,7 +1926,7 @@ export function RestTimer({
           transition={APPLE_BOUNCE}
           onClick={(e) => {
             if ((e.target as HTMLElement).closest("button")) return;
-            unlockSilentRestAudio(restExName, Math.ceil((endsAt - Date.now()) / 1000));
+            unlockSilentRestAudio(restExName, Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
             if (showQuickReturn && onReturnToWorkout) {
               sfx.whoosh();
               haptic(8);

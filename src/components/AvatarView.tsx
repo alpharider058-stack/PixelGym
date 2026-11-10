@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
-import { useGame } from "@/lib/store";
+import { useGame, WorkoutLog } from "@/lib/store";
 import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf } from "@/lib/data";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
@@ -12,6 +12,10 @@ import { Bar, Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE 
 import { Sheet } from "./GymView";
 import MuscleHeatmap from "./MuscleHeatmap";
 import PushPanel from "./PushPanel";
+
+const EMPTY_TROPHIES: Trophy[] = [];
+const EMPTY_HISTORY: WorkoutLog[] = [];
+const EMPTY_STRINGS: string[] = [];
 
 type AvatarTab = "hero" | "body" | "awards" | "settings";
 
@@ -61,17 +65,17 @@ export default function AvatarView() {
       gold: s.gold,
       muscleVol: s.muscleVol,
       sound: s.sound,
-      trophies: s.trophies || [],
+      trophies: s.trophies ?? EMPTY_TROPHIES,
       bodyweight: s.bodyweight ?? 75,
       activeTitle: s.activeTitle,
       equipped: s.equipped,
       streak: s.streak,
       maxStreak: s.maxStreak || 0,
-      history: s.history || [],
-      owned: s.owned || [],
+      history: s.history ?? EMPTY_HISTORY,
+      owned: s.owned ?? EMPTY_STRINGS,
       bossKills: s.bossKills || 0,
       totalPrs: s.totalPrs || 0,
-      claimedAchievements: s.claimedAchievements || [],
+      claimedAchievements: s.claimedAchievements ?? EMPTY_STRINGS,
     }))
   );
   const toggleSound = useGame((s) => s.toggleSound);
@@ -757,7 +761,7 @@ function TrophyCabinet({ trophies }: { trophies: Trophy[] }) {
 
 function Armory({ level }: { level: number }) {
   const [slot, setSlot] = useState<Slot>("shirt");
-  const { owned, equipped, gold } = useGame(useShallow((s) => ({ owned: s.owned, equipped: s.equipped, gold: s.gold })));
+  const { owned, equipped, gold } = useGame(useShallow((s) => ({ owned: s.owned ?? EMPTY_STRINGS, equipped: s.equipped, gold: s.gold })));
   const buy = useGame((s) => s.buy);
   const equip = useGame((s) => s.equip);
   return (
@@ -828,11 +832,11 @@ function AchievementHall() {
       tonnage: s.tonnage,
       streak: s.streak,
       maxStreak: s.maxStreak || 0,
-      history: s.history || [],
-      owned: s.owned || [],
+      history: s.history ?? EMPTY_HISTORY,
+      owned: s.owned ?? EMPTY_STRINGS,
       bossKills: s.bossKills || 0,
       totalPrs: s.totalPrs || 0,
-      claimedAchievements: s.claimedAchievements || [],
+      claimedAchievements: s.claimedAchievements ?? EMPTY_STRINGS,
       activeTitle: s.activeTitle,
     }))
   );

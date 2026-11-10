@@ -9,13 +9,15 @@ import { fx, fxAt, haptic, sfx } from "@/lib/fx";
 import { Bar, Panel, PixelButton, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import BossPixelCanvas from "./BossPixelCanvas";
 
+const EMPTY_QUESTS: Quest[] = [];
+
 export default function RaidBossView() {
   const { bossDmgDealt, bossClaimed, equipped, quests, claimQuest, claimBossVictory } = useGame(
     useShallow((s) => ({
       bossDmgDealt: s.bossDmgDealt || 0,
       bossClaimed: !!s.bossDefeated,
       equipped: s.equipped,
-      quests: s.quests || [],
+      quests: s.quests ?? EMPTY_QUESTS,
       claimQuest: s.claimQuest,
       claimBossVictory: s.claimBossVictory,
     }))
