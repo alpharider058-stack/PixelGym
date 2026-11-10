@@ -16,6 +16,30 @@ export const AH = 72;
 
 const SKIN = "#e0a370", SHADE = "#b2703f", HI = "#f6c99c", OUT = "#24150e", VEIN = "#9a5a34";
 
+function drawGripFist(
+  r: (x: number, y: number, w: number, h: number, col: string) => void,
+  fx: number,
+  fy: number,
+  horizontalBar = false
+) {
+  if (horizontalBar) {
+    // 4 fingers curling tightly OVER a horizontal dumbbell bar + knuckle highlight
+    r(fx - 2, fy - 2, 5, 4, OUT);
+    r(fx - 1, fy - 1, 3, 2, SKIN);
+    r(fx - 1, fy - 1, 2, 1, HI);
+    r(fx, fy + 1, 1, 1, SHADE);
+  } else {
+    // Closed warrior fist + curled fingers + clamped thumb OVER the weapon grip
+    r(fx - 2, fy - 2, 4, 4, OUT);
+    r(fx - 1, fy - 1, 3, 3, SKIN);
+    r(fx, fy - 1, 2, 1, HI);      // crisp top knuckle highlight
+    r(fx, fy + 1, 2, 1, SHADE);   // bottom curled pinky finger shade
+    // Thumb clamping upper-inner side of hilt
+    r(fx - 2, fy - 2, 2, 2, OUT);
+    r(fx - 2, fy - 1, 1, 1, HI);
+  }
+}
+
 function drawWeaponSprite(
   r: (x: number, y: number, w: number, h: number, col: string) => void,
   weaponId: string | undefined,
@@ -26,38 +50,97 @@ function drawWeaponSprite(
   if (!weaponId || weaponId === "weapon_none") return;
 
   if (weaponId === "weapon_dumbbell") {
-    // held diagonally/vertically in fist
-    r(fx - 1, fy - 4, 3, 9, "#64748b");
-    r(fx - 3, fy - 6, 7, 3, "#1e293b");
-    r(fx - 2, fy - 5, 5, 1, "#e2e8f0");
-    r(fx - 3, fy + 3, 7, 3, "#1e293b");
-    r(fx - 2, fy + 4, 5, 1, "#e2e8f0");
+    // Horizontal Olympic Iron Dumbbell held firmly inside the fist (`fx, fy`)
+    r(fx - 4, fy - 1, 9, 2, "#334155"); // dark knurled bar
+    r(fx - 3, fy - 1, 7, 1, "#94a3b8"); // bar highlight
+    // Left hex weight plates
+    r(fx - 6, fy - 4, 3, 8, "#0f172a");
+    r(fx - 5, fy - 3, 2, 6, "#475569");
+    r(fx - 5, fy - 3, 1, 5, "#e2e8f0");
+    // Right hex weight plates
+    r(fx + 4, fy - 4, 3, 8, "#0f172a");
+    r(fx + 4, fy - 3, 2, 6, "#475569");
+    r(fx + 5, fy - 3, 1, 5, "#e2e8f0");
+    // Draw fingers OVER the center bar so the hand physically holds the dumbbell
+    drawGripFist(r, fx, fy, true);
   } else if (weaponId === "weapon_greatsword") {
-    // Barbell Greatsword pointing up
-    r(fx - 1, fy + 1, 3, 3, "#475569"); // pommel
-    r(fx - 4, fy - 2, 9, 3, "#0f172a"); // barbell guard
-    r(fx - 3, fy - 1, 7, 1, "#3df2ff");
-    r(fx - 2, fy - 17, 5, 15, "#475569"); // outline blade
-    r(fx - 1, fy - 16, 3, 14, "#cbd5e1");
-    r(fx, fy - 16, 1, 13, "#ffffff");
-  } else if (weaponId === "weapon_axe") {
-    // Crimson Battle Axe
-    r(fx, fy - 14, 2, 18, "#78350f");
-    r(fx - 5, fy - 15, 12, 8, "#4c0519");
-    r(fx - 4, fy - 14, 10, 6, "#ff3f6c");
-    r(fx - 5, fy - 13, 2, 4, "#ffe14d");
-    r(fx + 5, fy - 13, 2, 4, "#ffe14d");
-  } else if (weaponId === "weapon_hammer") {
-    // Titan Lightning Hammer
-    r(fx, fy - 12, 2, 16, "#78350f");
-    r(fx - 5, fy - 18, 12, 7, "#1e293b");
-    r(fx - 4, fy - 17, 10, 5, "#ffe14d");
-    r(fx - 5, fy - 16, 2, 3, "#3df2ff");
-    r(fx + 5, fy - 16, 2, 3, "#3df2ff");
-    if (Math.sin(t / 100) > 0.3) {
-      r(fx - 7, fy - 19, 2, 2, "#3df2ff");
-      r(fx + 7, fy - 14, 2, 2, "#ffffff");
+    // Barbell Greatsword angled slightly outward-up (`↗`) in open air beside shoulder
+    // Bottom handle + weighted pommel peeking below fist
+    r(fx - 1, fy + 1, 3, 4, "#0f172a");
+    r(fx - 1, fy + 1, 2, 3, "#475569");
+    r(fx - 2, fy + 4, 3, 2, "#94a3b8");
+    // Handle inside fist
+    r(fx - 1, fy - 2, 3, 4, "#334155");
+    // Barbell Weighted Crossguard cleanly above thumb
+    r(fx - 3, fy - 4, 7, 3, "#0f172a");
+    r(fx - 2, fy - 3, 5, 1, "#3df2ff");
+    r(fx - 4, fy - 5, 2, 4, "#475569");
+    r(fx + 3, fy - 5, 2, 4, "#475569");
+    // Tapered Heroic Steel Broadblade rising cleanly in open sky (`↗`)
+    for (let step = 0; step < 12; step++) {
+      const bx = fx + Math.floor(step * 0.2);
+      const by = fy - 5 - step;
+      const bw = step >= 10 ? 2 : 4;
+      r(bx - 1, by, bw + 1, 1, "#1e293b");
+      r(bx, by, Math.max(1, bw - 1), 1, "#cbd5e1");
+      if (step < 11) r(bx + 1, by, 1, 1, "#ffffff");
     }
+    r(fx + 2, fy - 17, 2, 1, "#ffffff"); // razor tip
+    drawGripFist(r, fx, fy, false);
+  } else if (weaponId === "weapon_axe") {
+    // Crimson Battle Axe held upright/slight-diagonal in open space above fist
+    // Pommel peeking below hand
+    r(fx - 1, fy + 2, 3, 4, "#1c060c");
+    r(fx - 1, fy + 2, 2, 3, "#78350f");
+    r(fx - 2, fy + 4, 3, 2, "#b45309");
+    // Oak haft passing cleanly upward-right through fist
+    for (let step = 0; step <= 13; step++) {
+      const hx = fx + Math.floor(step * 0.16);
+      const hy = fy - step;
+      r(hx - 1, hy, 3, 1, "#1c060c");
+      r(hx, hy, 2, 1, step % 2 ? "#b45309" : "#78350f");
+    }
+    // Twin Crimson Crescent Axe Blades at top of haft (`fx + 1, fy - 12`)
+    const ax = fx + 1;
+    const ay = fy - 12;
+    r(ax - 4, ay - 4, 10, 9, "#090a12");
+    r(ax - 3, ay - 3, 8, 7, "#9f1239");
+    r(ax - 2, ay - 2, 6, 5, "#ff3f6c");
+    // Razor crescent edges left & right
+    r(ax - 4, ay - 2, 2, 5, "#ffe14d");
+    r(ax + 4, ay - 2, 2, 5, "#ffe14d");
+    r(ax + 5, ay - 1, 1, 3, "#ffffff");
+    // Center bronze collar
+    r(ax, ay - 3, 2, 7, "#b45309");
+    drawGripFist(r, fx, fy, false);
+  } else if (weaponId === "weapon_hammer") {
+    // Titan Lightning War-Hammer held heroically in fist (`fx, fy`)
+    // Pommel below fist
+    r(fx - 1, fy + 2, 3, 4, "#1c060c");
+    r(fx - 1, fy + 2, 2, 3, "#78350f");
+    r(fx - 2, fy + 4, 3, 2, "#ffe14d");
+    // Heavy oak shaft rising through fist up to hammer block
+    for (let step = 0; step <= 11; step++) {
+      const hx = fx + Math.floor(step * 0.15);
+      const hy = fy - step;
+      r(hx - 1, hy, 3, 1, "#090a12");
+      r(hx, hy, 2, 1, step % 2 ? "#b45309" : "#78350f");
+    }
+    // Massive Gold & Storm-Cyan Titan Hammer Head clear in open sky
+    const mx = fx + 1;
+    const my = fy - 14;
+    r(mx - 4, my - 3, 10, 8, "#0f172a"); // deep obsidian border
+    r(mx - 3, my - 2, 8, 6, "#d97706"); // warm bronze body
+    r(mx - 3, my - 2, 8, 4, "#ffe14d"); // bright gold upper face
+    r(mx - 2, my - 1, 5, 2, "#ffffff"); // specular highlight
+    // Cyan rune end-caps
+    r(mx - 4, my - 1, 2, 4, "#3df2ff");
+    r(mx + 4, my - 1, 2, 4, "#3df2ff");
+    if (Math.sin(t / 100) > 0.25) {
+      r(mx - 5, my - 4, 2, 2, "#3df2ff");
+      r(mx + 5, my + 2, 2, 2, "#ffffff");
+    }
+    drawGripFist(r, fx, fy, false);
   }
 }
 
@@ -132,6 +215,29 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
     }
   }
 
+  const weaponId = equipped.weapon;
+  const hasHeavyWeapon =
+    weaponId === "weapon_greatsword" || weaponId === "weapon_axe" || weaponId === "weapon_hammer";
+  const hasDumbbell = weaponId === "weapon_dumbbell";
+  const rightAx = cx + shW;
+  const rightForearmW = Math.max(2.5, Math.min(3.5, armW - 0.5));
+  const weaponGripX =
+    flex > 0 && !hasHeavyWeapon
+      ? Math.min(54, Math.round(rightAx + 9 - Math.max(1, (armW - 1) / 2)))
+      : hasHeavyWeapon
+      ? flex > 0
+        ? Math.min(55, Math.round(rightAx + 7.5))
+        : Math.min(55, Math.round(rightAx + 6.5))
+      : Math.min(54, Math.round(rightAx + armW * 0.5));
+  const weaponGripY =
+    hasHeavyWeapon
+      ? flex > 0
+        ? topY - 4
+        : topY + 9
+      : flex > 0
+      ? topY - 12
+      : topY + 23;
+
   /* ---------- outline + fill passes ---------- */
   for (let pass = 0; pass < 2; pass++) {
     const e = pass === 0 ? 1 : 0;
@@ -157,7 +263,25 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
     // arms
     for (const s of [-1, 1]) {
       const ax = cx + s * shW;
-      if (flex > 0) {
+      if (s === 1 && hasHeavyWeapon) {
+        if (flex > 0) {
+          // L-shape heroic bicep curl holding raised weapon cleanly out & up!
+          const upperSpan = Math.max(4, weaponGripX - ax);
+          const bicepsPeakR = Math.round(armW / 2 + 0.3 + ar * 0.25);
+          r(ax - e, topY + 1 - e, upperSpan + 1.5 + e * 2, armW * 0.78 + e * 2, S);
+          disc(Math.round((ax + weaponGripX) / 2), topY + 1, bicepsPeakR + e, S);
+          r(weaponGripX - 1.5 - e, weaponGripY - e, 3.5 + e * 2, topY + 3 - weaponGripY + e * 2, S);
+        } else {
+          // Upper arm cleanly drops to elbow, then horizontal forearm extends cleanly to fist
+          const ux = ax - 1.5;
+          const uW = Math.min(armW, 4.2);
+          r(ux - e, topY + 1 - e, uW + e * 2, 9.5 + e * 2, S);
+          const fStart = Math.min(ux + 1, weaponGripX - 4.5);
+          const fLen = Math.max(4, weaponGripX - fStart);
+          r(fStart - e, weaponGripY - 1.5 - e, fLen + e * 2, rightForearmW + e * 2, S);
+        }
+        r(weaponGripX - 1.5 - e, weaponGripY - 1.5 - e, 3.5 + e * 2, 3.5 + e * 2, S); // palm base behind hilt
+      } else if (flex > 0) {
         const ux = s < 0 ? ax - 9 : ax;
         r(ux - e, topY + 1 - e, 9 + e * 2, armW + e * 2, S); // upper arm horizontal
         const fx = s < 0 ? ax - 9 : ax + 9 - (armW - 1);
@@ -167,8 +291,9 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
       } else {
         const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5;
         r(ux - e, topY + 1 - e, armW + e * 2, 12 + e * 2, S);
-        r(ux + (s < 0 ? 0 : 0.5) - e, topY + 13 - e, armW - 0.5 + e * 2, 9 + e * 2, S);
-        r(ux - e, topY + 22 - e, armW + e * 2, 3 + e * 2, S);
+        const fShift = s === 1 && hasDumbbell ? 0.5 : s < 0 ? 0 : 0.5;
+        r(ux + fShift - e, topY + 13 - e, armW - 0.5 + e * 2, 9 + e * 2, S);
+        r(ux + (s === 1 && hasDumbbell ? 0.5 : 0) - e, topY + 22 - e, armW + e * 2, 3 + e * 2, S);
       }
       disc(ax + s * 0.5, topY + 1.5, Math.round(deltR) + e, S);
     }
@@ -205,7 +330,15 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   // arms definition / vascularity
   for (const s of [-1, 1]) {
     const ax = cx + s * shW;
-    if (flex > 0) {
+    if (s === 1 && hasHeavyWeapon) {
+      if (flex > 0) {
+        if (ar >= 1 || p.arms) r(ax + 2, topY, 3, 1, p.arms ? "#ff8ba7" : HI);
+        if (ar >= 3 || p.arms) r(weaponGripX - 0.5, weaponGripY + 4, 1, 2, VEIN);
+      } else {
+        if (ar >= 1 || p.arms) r(ax, topY + 3, 1, 5, p.arms ? "#ff8ba7" : HI);
+        if (ar >= 3 || p.arms) r(weaponGripX - 6, weaponGripY - 0.5, 2, 1, VEIN);
+      }
+    } else if (flex > 0) {
       if (ar >= 1 || p.arms) r(ax + s * 3, topY + 1, 3, 1, p.arms ? "#ff8ba7" : HI);
       if (ar >= 3 || p.arms) { r(ax + s * 6, topY + 3, 1, 1, VEIN); r(ax + s * 5, topY + 4, 2, 1, VEIN); }
     } else {
@@ -236,8 +369,20 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   const wrist = ITEM[equipped.wrist];
   if (wrist?.color) for (const s of [-1, 1]) {
     const ax = cx + s * shW;
-    if (flex > 0) { const fx = s < 0 ? ax - 9 : ax + 9 - (armW - 1); r(fx - 0.5, topY - 10, armW, 2, wrist.color); }
-    else { const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5; r(ux, topY + 20, armW, 2, wrist.color); }
+    if (s === 1 && hasHeavyWeapon) {
+      if (flex > 0) {
+        r(weaponGripX - 1.5, weaponGripY + 2, 3.5, 2, wrist.color);
+      } else {
+        // Vertical wristband cleanly sitting on horizontal outstretched forearm just left of fist
+        r(weaponGripX - 3.5, weaponGripY - 1.5, 2, rightForearmW, wrist.color);
+      }
+    } else if (flex > 0) {
+      const fx = s < 0 ? ax - 9 : ax + 9 - (armW - 1);
+      r(fx - 0.5, topY - 10, armW, 2, wrist.color);
+    } else {
+      const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5;
+      r(ux + (s === 1 && hasDumbbell ? 0.5 : 0), topY + 20, armW, 2, wrist.color);
+    }
   }
 
   /* ---------- face & hair ---------- */
@@ -259,11 +404,7 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   // level-based headband glow
   if (cfg.level >= 15) r(cx - 5, hb + 2, 10, 1, "#ff3f6c");
 
-  /* ---------- weapon (right fist) & pet companion ---------- */
-  const fistX = flex > 0
-    ? cx + shW + 9 - Math.max(1, (armW - 1) / 2)
-    : cx + shW + Math.max(1, armW * 0.45);
-  const fistY = flex > 0 ? topY - 12 : topY + 23;
-  drawWeaponSprite(r, equipped.weapon, Math.min(AW - 6, fistX), Math.max(16, fistY), t);
+  /* ---------- weapon (inside gripped right fist) & pet companion ---------- */
+  drawWeaponSprite(r, equipped.weapon, weaponGripX, weaponGripY, t);
   drawPetSprite(r, equipped.pet, 13, 66, t, 1);
 }

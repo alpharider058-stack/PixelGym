@@ -169,7 +169,7 @@ export function WeaponPreviewCanvas({
 }
 
 /**
- * Crisp 16x14 miniature Boss emblem portrait (used in RaidBoss header, Victory Modal, and Gym tab).
+ * Crisp 16x16 miniature Boss emblem portrait (used in RaidBoss header, Victory Modal, and Gym tab).
  */
 export function BossEmblemCanvas({
   theme,
@@ -190,10 +190,10 @@ export function BossEmblemCanvas({
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, 16, 12);
+    ctx.clearRect(0, 0, 16, 16);
     const sp = isDefeated ? BOSS_MINI_SKULL_DEFEATED : BOSS_MINI_EMBLEMS[theme];
     const left = Math.floor((16 - sp.w) / 2);
-    const top = Math.floor((12 - sp.h) / 2);
+    const top = Math.floor((16 - sp.h) / 2);
     drawCompiledWithPlotter(
       (x, y, w, h, col) => {
         ctx.fillStyle = col;
@@ -210,8 +210,8 @@ export function BossEmblemCanvas({
     <canvas
       ref={ref}
       width={16}
-      height={12}
-      style={{ width: size, height: Math.round((size * 12) / 16) }}
+      height={16}
+      style={{ width: size, height: size }}
       className={`pixelated shrink-0 ${className}`}
       aria-hidden="true"
     />
