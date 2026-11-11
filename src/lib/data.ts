@@ -162,6 +162,68 @@ export const getTimeUntilWeeklyReset = (now: number = Date.now()): string => {
 };
 
 export type Slot = "shirt" | "belt" | "wrist" | "hair" | "aura" | "weapon" | "pet" | "bg";
+
+export interface SkinPalette {
+  id: string;
+  name: string;
+  skin: string;
+  shade: string;
+  hi: string;
+  vein: string;
+}
+
+export const SKIN_PALETTES: SkinPalette[] = [
+  { id: "classic", name: "Clásico", skin: "#e0a370", shade: "#b2703f", hi: "#f6c99c", vein: "#9a5a34" },
+  { id: "fair", name: "Pálido", skin: "#f3c7a6", shade: "#c98f6d", hi: "#fce5d4", vein: "#a8624a" },
+  { id: "bronze", name: "Bronceado", skin: "#c8834a", shade: "#945624", hi: "#e6a66d", vein: "#753d16" },
+  { id: "olive", name: "Oliva", skin: "#bfa370", shade: "#8f7344", hi: "#dbc598", vein: "#6e552d" },
+  { id: "dark", name: "Ébano", skin: "#764528", shade: "#4e2912", hi: "#9c603b", vein: "#381a09" },
+  { id: "orc", name: "Orco Verde", skin: "#5d9948", shade: "#3d6d2e", hi: "#86c26f", vein: "#294d1c" },
+  { id: "cyber", name: "Cyber Neón", skin: "#4da5b8", shade: "#2b6e7d", hi: "#86d6e6", vein: "#194c57" },
+  { id: "undead", name: "Espectral", skin: "#948bb5", shade: "#645a85", hi: "#bcb4db", vein: "#473d66" },
+];
+
+export interface HairColorOption {
+  id: string;
+  name: string;
+  color: string;
+  hi?: string;
+}
+
+export const HAIR_COLORS: HairColorOption[] = [
+  { id: "dark_brown", name: "Castaño Oscuro", color: "#2b1d14", hi: "#4a3528" },
+  { id: "black", name: "Negro Azabache", color: "#14151a", hi: "#2c303d" },
+  { id: "golden", name: "Rubio Dorado", color: "#fbf236", hi: "#ffffff" },
+  { id: "chestnut", name: "Cobrizo", color: "#8a4b1f", hi: "#b86b35" },
+  { id: "crimson", name: "Rojo Furia", color: "#ff3f6c", hi: "#ff8fa8" },
+  { id: "silver", name: "Plata Titán", color: "#cbd5e1", hi: "#ffffff" },
+  { id: "cyan", name: "Cyber Cian", color: "#3df2ff", hi: "#c5fcff" },
+  { id: "neon_pink", name: "Rosa Neón", color: "#ff3fa4", hi: "#ffa3d5" },
+];
+
+export interface FacialHairOption {
+  id: string;
+  name: string;
+}
+
+export const FACIAL_HAIR_OPTIONS: FacialHairOption[] = [
+  { id: "clean", name: "Afeitado Limpio" },
+  { id: "stubble", name: "Barba 3 Días" },
+  { id: "full", name: "Barba Espartana" },
+  { id: "goatee", name: "Perilla de Guerrero" },
+];
+
+export interface HeroTraits {
+  skinTone: string;
+  hairColor: string;
+  facialHair: string;
+}
+
+export const DEFAULT_HERO_TRAITS: HeroTraits = {
+  skinTone: "classic",
+  hairColor: "dark_brown",
+  facialHair: "clean",
+};
 export interface Item {
   id: string;
   slot: Slot;

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame, WorkoutLog } from "@/lib/store";
-import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf } from "@/lib/data";
+import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf, SKIN_PALETTES, HAIR_COLORS, FACIAL_HAIR_OPTIONS, DEFAULT_HERO_TRAITS } from "@/lib/data";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fxAt, haptic, sfx } from "@/lib/fx";
@@ -18,10 +18,11 @@ const EMPTY_TROPHIES: Trophy[] = [];
 const EMPTY_HISTORY: WorkoutLog[] = [];
 const EMPTY_STRINGS: string[] = [];
 
-type AvatarTab = "hero" | "body" | "awards" | "settings";
+type AvatarTab = "hero" | "traits" | "body" | "awards" | "settings";
 
 const AVATAR_TABS: { id: AvatarTab; label: string; icon: string }[] = [
   { id: "hero", label: "HÉROE", icon: "☻" },
+  { id: "traits", label: "RASGOS", icon: "🎨" },
   { id: "body", label: "CUERPO", icon: "🧬" },
   { id: "awards", label: "LOGROS", icon: "🏆" },
   { id: "settings", label: "AJUSTES", icon: "⚙" },
@@ -112,10 +113,10 @@ export default function AvatarView() {
     <div className="flex flex-col gap-5">
       {/* Sub-navegación compacta y tamaño fijo para organizar Avatar sin sobrecargar */}
       <div className="border-2 border-[#2c3350] bg-[#10131f] p-1 shadow-[3px_3px_0_#000]">
-        <div className="relative grid grid-cols-4">
+        <div className="relative grid grid-cols-5">
           <motion.div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 left-0 w-1/4"
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/5"
             initial={false}
             animate={{ x: `${activeIdx * 100}%` }}
             transition={APPLE_SPRING}
@@ -277,6 +278,42 @@ export default function AvatarView() {
           </motion.div>
         )}
 
+        {subTab === "traits" && (
+          <motion.div
+            key="sub-traits"
+            initial={{ opacity: 0, x: 16 * subDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 * subDir }}
+            transition={SPRING}
+            className="flex flex-col gap-5"
+          >
+            {/* VISTA PREVIA INTERACTIVA DEL HÉROE CON SUS RASGOS */}
+            <Panel className="flex flex-col items-center gap-3 p-4">
+              <div className="flex w-full items-center justify-between border-b-2 border-[#2c3350] pb-2">
+                <div>
+                  <h3 className="pixel-title text-[10px] text-[var(--gold)]">RASGOS FÍSICOS</h3>
+                  <span className="pixel-title text-[7px] text-[#8b93b8]">PIEL · PELO · BARBA</span>
+                </div>
+                <span className="pixel-title border border-[#2c3350] bg-[#10131f] px-2 py-0.5 text-[7px] text-[var(--cyan)]">
+                  INDIVIDUAL Y GRATUITO
+                </span>
+              </div>
+
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={APPLE_TAP}
+                className="frame9 cursor-pointer"
+              >
+                <Avatar cfg={cfg} scale={3.5} interactive />
+              </motion.div>
+              <div className="pixel-title text-[8px] text-[#8b93b8]">VISTA PREVIA EN VIVO</div>
+            </Panel>
+
+            <HeroTraitsEditor />
+          </motion.div>
+        )}
+
         {subTab === "body" && (
           <motion.div
             key="sub-body"
@@ -327,11 +364,11 @@ export default function AvatarView() {
             transition={SPRING}
             className="flex flex-col gap-5"
           >
+            {/* VITRINA DE TROFEOS SEMANALES (PRIMERO) */}
+            <TrophyCabinet trophies={trophies} />
+
             {/* MEDALLAS DE CARRERA & LOGROS PERMANENTES */}
             <AchievementHall />
-
-            {/* VITRINA DE TROFEOS SEMANALES */}
-            <TrophyCabinet trophies={trophies} />
           </motion.div>
         )}
 
@@ -352,6 +389,192 @@ export default function AvatarView() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function HeroTraitsEditor() {
+  const heroTraits = useGame((s) => s.heroTraits ?? DEFAULT_HERO_TRAITS);
+  const setHeroTraits = useGame((s) => s.setHeroTraits);
+  const equipped = useGame((s) => s.equipped);
+  const equip = useGame((s) => s.equip);
+  const [activeSubSection, setActiveSubSection] = useState<"skin" | "hair" | "beard">("skin");
+
+  return (
+    <Panel className="p-4 space-y-4">
+      {/* Sub-tabs selector for traits */}
+      <div className="flex gap-1.5 border-b-2 border-[#2c3350] pb-2">
+        {([
+          { id: "skin", label: "TONO PIEL", icon: "🎨" },
+          { id: "hair", label: "PELO", icon: "✂" },
+          { id: "beard", label: "BARBA", icon: "🧔" },
+        ] as const).map((tab) => {
+          const active = activeSubSection === tab.id;
+          return (
+            <motion.button
+              key={tab.id}
+              whileTap={{ scale: 0.95 }}
+              transition={APPLE_TAP}
+              onClick={() => {
+                setActiveSubSection(tab.id);
+                sfx.tick();
+                haptic(5);
+              }}
+              className={`flex-1 border-2 py-1.5 pixel-title text-[8px] transition-colors cursor-pointer ${
+                active
+                  ? "border-black bg-[var(--gold)] text-black font-bold shadow-[2px_2px_0_#000]"
+                  : "border-[#2c3350] bg-[#10131f] text-[#8b93b8]"
+              }`}
+            >
+              {tab.icon} {tab.label}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* Tono de piel */}
+      {activeSubSection === "skin" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="pixel-title text-[8px] text-[var(--gold)]">SELECCIONA COLOR DE PIEL</span>
+            <span className="mono text-[11px] text-[#8b93b8]">
+              {SKIN_PALETTES.find((p) => p.id === heroTraits.skinTone)?.name || "Clásico"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {SKIN_PALETTES.map((pal) => {
+              const on = heroTraits.skinTone === pal.id;
+              return (
+                <motion.button
+                  key={pal.id}
+                  whileHover={{ y: -1, scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    setHeroTraits({ skinTone: pal.id });
+                    sfx.tap();
+                    haptic(6);
+                  }}
+                  className={`flex items-center gap-2.5 border-2 p-2 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
+                    on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
+                  }`}
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center border-2 border-black" style={{ background: pal.skin }}>
+                    <span className="h-2 w-2" style={{ background: pal.shade }} />
+                  </span>
+                  <div className="min-w-0">
+                    <span className="pixel-title block truncate text-[8px] text-white">{pal.name}</span>
+                    <span className="pixel-title text-[6.5px] text-[#8b93b8]">{on ? "✓ ACTIVO" : "APLICAR"}</span>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Pelo: Color y Estilo */}
+      {activeSubSection === "hair" && (
+        <div className="space-y-4">
+          {/* Estilo de pelo */}
+          <div className="space-y-2">
+            <span className="pixel-title block text-[8px] text-[var(--gold)]">CORTE / ESTILO DE PELO</span>
+            <div className="grid grid-cols-2 gap-2">
+              {ITEMS.filter((it) => it.slot === "hair").map((hairItem) => {
+                const on = (equipped?.hair ?? "hair_short") === hairItem.id;
+                return (
+                  <motion.button
+                    key={hairItem.id}
+                    whileHover={{ y: -1, scale: 1.02 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={APPLE_TAP}
+                    onClick={() => {
+                      equip(hairItem.id);
+                      sfx.tap();
+                      haptic(6);
+                    }}
+                    className={`flex items-center gap-2 border-2 p-2 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
+                      on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
+                    }`}
+                  >
+                    <span className="pixelated inline-block h-4 w-4 shrink-0 border-2 border-black" style={{ background: hairItem.color }} />
+                    <div className="min-w-0">
+                      <span className="pixel-title block truncate text-[8px] text-white">{hairItem.name}</span>
+                      <span className="pixel-title text-[6.5px] text-[#8b93b8]">{on ? "✓ PUESTO" : "PONER"}</span>
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Color del pelo */}
+          <div className="space-y-2 border-t border-[#2c3350] pt-3">
+            <div className="flex items-center justify-between">
+              <span className="pixel-title text-[8px] text-[var(--gold)]">TINTE DE PELO</span>
+              <span className="mono text-[11px] text-[#8b93b8]">
+                {HAIR_COLORS.find((h) => h.id === heroTraits.hairColor)?.name || "Original"}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {HAIR_COLORS.map((hc) => {
+                const on = heroTraits.hairColor === hc.id;
+                return (
+                  <motion.button
+                    key={hc.id}
+                    whileHover={{ y: -2, scale: 1.05 }}
+                    whileTap={{ scale: 0.94 }}
+                    transition={APPLE_TAP}
+                    onClick={() => {
+                      setHeroTraits({ hairColor: hc.id });
+                      sfx.tap();
+                      haptic(6);
+                    }}
+                    className={`flex flex-col items-center gap-1 border-2 p-1.5 cursor-pointer shadow-[2px_2px_0_#000] ${
+                      on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
+                    }`}
+                    title={hc.name}
+                  >
+                    <span className="h-5 w-full border border-black shadow-[inset_0_0_4px_rgba(0,0,0,0.6)]" style={{ background: hc.color }} />
+                    <span className="pixel-title block truncate text-[6.5px] text-[#cbd5e1]">{hc.name.split(" ")[0]}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vello facial / Barba */}
+      {activeSubSection === "beard" && (
+        <div className="space-y-3">
+          <span className="pixel-title block text-[8px] text-[var(--gold)]">VELLO FACIAL Y BARBA</span>
+          <div className="grid grid-cols-2 gap-2">
+            {FACIAL_HAIR_OPTIONS.map((opt) => {
+              const on = (heroTraits.facialHair || "clean") === opt.id;
+              return (
+                <motion.button
+                  key={opt.id}
+                  whileHover={{ y: -1, scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    setHeroTraits({ facialHair: opt.id });
+                    sfx.tap();
+                    haptic(6);
+                  }}
+                  className={`flex flex-col items-start gap-1 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
+                    on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
+                  }`}
+                >
+                  <span className="pixel-title text-[8.5px] text-white font-bold">{opt.name}</span>
+                  <span className="pixel-title text-[7px] text-[#8b93b8]">{on ? "✓ EQUIPADO" : "ELEGIR"}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 

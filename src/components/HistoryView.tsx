@@ -2,10 +2,10 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
-import { useGame, WorkoutLog } from "@/lib/store";
+import { useGame, WorkoutLog, WeightEntry } from "@/lib/store";
 import { e1rm, EX, isBodyweight, localDayKey, MUSCLE_LABEL, Muscle } from "@/lib/data";
-import { haptic, sfx } from "@/lib/fx";
-import { Panel, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
+import { haptic, sfx, fxAt } from "@/lib/fx";
+import { Panel, PixelButton, SPRING, APPLE_SPRING, APPLE_TAP, APPLE_BOUNCE } from "./ui";
 import { Sheet } from "./GymView";
 
 type HistoryTab = "summary" | "records" | "history" | "backup";
@@ -393,6 +393,9 @@ export default function HistoryView() {
                 </div>
               </div>
             </Panel>
+
+            {/* PROGRESO DE PESO CORPORAL (GRÁFICA Y REGISTRO) */}
+            <WeightProgressCard />
 
             {/* CALENDARIO DE CONSISTENCIA (12 SEMANAS / 84 DÍAS) */}
             <ConsistencyCalendar history={history} />
@@ -1139,5 +1142,349 @@ function ExerciseChartSheet({
         )}
       </div>
     </Sheet>
+  );
+}
+
+function WeightProgressCard() {
+  const bodyweight = useGame((s) => s.bodyweight ?? 75);
+  const weightHistory = useGame((s) => s.weightHistory ?? []);
+  const setBodyweight = useGame((s) => s.setBodyweight);
+  const deleteWeightEntry = useGame((s) => s.deleteWeightEntry);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newBwDraft, setNewBwDraft] = useState(String(bodyweight));
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+
+  // Sort entries ascending by timestamp
+  const sortedEntries = useMemo(() => {
+    const list = Array.isArray(weightHistory) ? [...weightHistory] : [];
+    if (!list.length) {
+      return [{ id: "curr", date: Date.now(), kg: bodyweight }];
+    }
+    return list.sort((a, b) => a.date - b.date);
+  }, [weightHistory, bodyweight]);
+
+  const stats = useMemo(() => {
+    if (!sortedEntries.length) return { current: bodyweight, initial: bodyweight, delta: 0, min: bodyweight, max: bodyweight };
+    const initial = sortedEntries[0].kg;
+    const current = sortedEntries[sortedEntries.length - 1].kg;
+    const delta = Math.round((current - initial) * 10) / 10;
+    const kgs = sortedEntries.map((e) => e.kg);
+    const min = Math.min(...kgs);
+    const max = Math.max(...kgs);
+    return { current, initial, delta, min, max };
+  }, [sortedEntries, bodyweight]);
+
+  const activeEntry = useMemo(() => {
+    if (selectedPointId) {
+      return sortedEntries.find((e) => e.id === selectedPointId) ?? sortedEntries[sortedEntries.length - 1];
+    }
+    return sortedEntries[sortedEntries.length - 1];
+  }, [sortedEntries, selectedPointId]);
+
+  // SVG Chart geometry
+  const chart = useMemo(() => {
+    const W = 320;
+    const H = 140;
+    const padX = 30;
+    const padTop = 18;
+    const padBottom = 26;
+
+    if (sortedEntries.length === 0) return null;
+
+    const minKg = Math.floor(stats.min - 1);
+    const maxKg = Math.ceil(stats.max + 1);
+    const rangeKg = Math.max(2, maxKg - minKg);
+
+    const minT = sortedEntries[0].date;
+    const maxT = sortedEntries[sortedEntries.length - 1].date;
+    const rangeT = Math.max(1, maxT - minT);
+
+    const coords = sortedEntries.map((e, idx) => {
+      const x = sortedEntries.length === 1
+        ? W / 2
+        : padX + ((e.date - minT) / rangeT) * (W - padX * 2);
+      const y = padTop + (1 - (e.kg - minKg) / rangeKg) * (H - padTop - padBottom);
+      const d = new Date(e.date);
+      const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
+      const fullDateStr = d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+      return { id: e.id, x, y, kg: e.kg, dateStr, fullDateStr, rawDate: e.date };
+    });
+
+    // SVG path string
+    const pathD = coords.reduce((acc, pt, i) => `${acc} ${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, "");
+
+    // Area fill under line
+    const areaD = coords.length > 0
+      ? `${pathD} L ${coords[coords.length - 1].x.toFixed(1)} ${H - padBottom} L ${coords[0].x.toFixed(1)} ${H - padBottom} Z`
+      : "";
+
+    // 3 horizontal guide lines
+    const guides = [minKg, minKg + rangeKg / 2, maxKg].map((kgVal) => {
+      const y = padTop + (1 - (kgVal - minKg) / rangeKg) * (H - padTop - padBottom);
+      return { kg: Math.round(kgVal * 10) / 10, y };
+    });
+
+    return { W, H, coords, pathD, areaD, guides };
+  }, [sortedEntries, stats]);
+
+  const commitNewWeight = () => {
+    const val = parseFloat(newBwDraft.replace(",", "."));
+    if (!Number.isNaN(val)) {
+      const clamped = Math.max(30, Math.min(250, Math.round(val * 10) / 10));
+      setBodyweight(clamped);
+      sfx.tick();
+      haptic([10, 25]);
+      setIsModalOpen(false);
+    }
+  };
+
+  return (
+    <Panel className="p-4 space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#2c3350] pb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">⚖️</span>
+          <div>
+            <h3 className="pixel-title text-[10px] text-[var(--gold)]">PROGRESO DE PESO CORPORAL</h3>
+            <span className="pixel-title text-[7px] text-[#8b93b8]">EVOLUCIÓN EN EL TIEMPO</span>
+          </div>
+        </div>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.94 }}
+          transition={APPLE_TAP}
+          onClick={() => {
+            setNewBwDraft(String(bodyweight));
+            setIsModalOpen(true);
+            sfx.tick();
+          }}
+          className="pixel-title border-2 border-black bg-[var(--gold)] px-2.5 py-1 text-[7.5px] font-bold text-black shadow-[2px_2px_0_#000] cursor-pointer"
+        >
+          + REGISTRAR PESO
+        </motion.button>
+      </div>
+
+      {/* KPI Cards Row */}
+      <div className="grid grid-cols-4 gap-1.5 text-center">
+        <div className="border border-[#2c3350] bg-[#10131f] p-1.5">
+          <div className="pixel-title text-[6.5px] text-[#8b93b8]">ACTUAL</div>
+          <div className="mono text-base font-bold text-white tabular-nums">{stats.current} <span className="text-[10px] text-[var(--gold)]">kg</span></div>
+        </div>
+        <div className="border border-[#2c3350] bg-[#10131f] p-1.5">
+          <div className="pixel-title text-[6.5px] text-[#8b93b8]">INICIAL</div>
+          <div className="mono text-base font-bold text-[#cbd5e1] tabular-nums">{stats.initial} <span className="text-[10px] text-[#8b93b8]">kg</span></div>
+        </div>
+        <div className={`border p-1.5 ${stats.delta > 0 ? "border-[#7dff6a]/50 bg-[#15291a]/40" : stats.delta < 0 ? "border-[var(--cyan)]/50 bg-[#0d2330]/40" : "border-[#2c3350] bg-[#10131f]"}`}>
+          <div className="pixel-title text-[6.5px] text-[#8b93b8]">CAMBIO</div>
+          <div className={`mono text-base font-bold tabular-nums ${stats.delta > 0 ? "text-[#7dff6a]" : stats.delta < 0 ? "text-[var(--cyan)]" : "text-white"}`}>
+            {stats.delta > 0 ? `+${stats.delta}` : stats.delta} <span className="text-[10px]">kg</span>
+          </div>
+        </div>
+        <div className="border border-[#2c3350] bg-[#10131f] p-1.5">
+          <div className="pixel-title text-[6.5px] text-[#8b93b8]">MÍN / MÁX</div>
+          <div className="mono text-[12px] font-bold text-[#8b93b8] tabular-nums pt-0.5">{stats.min}/{stats.max}</div>
+        </div>
+      </div>
+
+      {/* Retro Pixel Chart Canvas / SVG */}
+      <div className="relative border-2 border-[#2c3350] bg-[#0c0e17] p-2 overflow-hidden shadow-[inset_0_0_12px_rgba(0,0,0,0.85)]">
+        {chart ? (
+          <svg viewBox={`0 0 ${chart.W} ${chart.H}`} className="w-full h-36 overflow-visible select-none">
+            <defs>
+              <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--gold)" stopOpacity="0.45" />
+                <stop offset="100%" stopColor="var(--gold)" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Horizontal guideline grid */}
+            {chart.guides.map((g, i) => (
+              <g key={i}>
+                <line x1="26" y1={g.y} x2={chart.W - 10} y2={g.y} stroke="#1f253d" strokeDasharray="3 3" strokeWidth="1" />
+                <text x="22" y={g.y + 3} textAnchor="end" fill="#636c8f" fontSize="8" fontFamily="monospace">
+                  {g.kg}
+                </text>
+              </g>
+            ))}
+
+            {/* Gradient area fill */}
+            {chart.areaD && <path d={chart.areaD} fill="url(#weightGrad)" />}
+
+            {/* Retro step trend line */}
+            <path
+              d={chart.pathD}
+              fill="none"
+              stroke="var(--gold)"
+              strokeWidth="2.5"
+              strokeLinejoin="miter"
+              strokeLinecap="square"
+            />
+
+            {/* Interactive Data Nodes */}
+            {chart.coords.map((pt) => {
+              const isSel = activeEntry?.id === pt.id;
+              return (
+                <g
+                  key={pt.id}
+                  onClick={() => {
+                    setSelectedPointId(pt.id);
+                    sfx.tick();
+                    haptic(5);
+                  }}
+                  className="cursor-pointer"
+                >
+                  {/* Invisible enlarged hit target for mobile tapping */}
+                  <circle cx={pt.x} cy={pt.y} r="14" fill="transparent" />
+
+                  {/* Pulsing ring on active node */}
+                  {isSel && (
+                    <rect
+                      x={pt.x - 7}
+                      y={pt.y - 7}
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                      className="animate-pulse"
+                    />
+                  )}
+
+                  {/* Pixel square marker */}
+                  <rect
+                    x={pt.x - (isSel ? 5 : 3.5)}
+                    y={pt.y - (isSel ? 5 : 3.5)}
+                    width={isSel ? 10 : 7}
+                    height={isSel ? 10 : 7}
+                    fill={isSel ? "#ffffff" : "var(--gold)"}
+                    stroke="#000000"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Bottom date label */}
+                  <text
+                    x={pt.x}
+                    y={chart.H - 8}
+                    textAnchor="middle"
+                    fill={isSel ? "var(--gold)" : "#8b93b8"}
+                    fontSize="7.5"
+                    fontFamily="monospace"
+                  >
+                    {pt.dateStr}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        ) : (
+          <div className="mono py-8 text-center text-xs text-[#8b93b8]">
+            Registra tu primer pesaje para comenzar la gráfica.
+          </div>
+        )}
+      </div>
+
+      {/* Selected point inspection pill */}
+      {activeEntry && (
+        <div className="flex items-center justify-between border-2 border-[var(--gold)]/60 bg-[#10131f] px-3 py-2">
+          <div>
+            <div className="pixel-title text-[7px] text-[#8b93b8]">
+              REGISTRO DEL {new Date(activeEntry.date).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).toUpperCase()}
+            </div>
+            <div className="mono text-base font-bold text-white">
+              {activeEntry.kg} kg
+            </div>
+          </div>
+          {sortedEntries.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                deleteWeightEntry(activeEntry.id);
+                sfx.tap();
+                haptic(6);
+              }}
+              className="pixel-title border border-[#2c3350] bg-[#1a1215] px-2 py-1 text-[7px] text-[var(--red)] hover:border-[var(--red)] cursor-pointer"
+            >
+              ELIMINAR ENTRADA
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Modal / Bottom Sheet for registering bodyweight */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <Sheet title="⚖️ REGISTRAR PESO" onClose={() => setIsModalOpen(false)}>
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between border-b-2 border-[#2c3350] pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚖️</span>
+                  <div>
+                    <h3 className="pixel-title text-[11px] text-[var(--gold)]">REGISTRAR NUEVO PESO</h3>
+                    <span className="pixel-title text-[7px] text-[#8b93b8]">ACTUALIZA TU PROGRESO</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 py-4">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.9 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    const cur = parseFloat(newBwDraft.replace(",", ".")) || bodyweight;
+                    setNewBwDraft(String(Math.max(30, Math.round((cur - 0.2) * 10) / 10)));
+                    sfx.tick();
+                  }}
+                  className="step-btn h-12 w-12 text-xl font-bold"
+                >
+                  −
+                </motion.button>
+
+                <div className="flex items-baseline border-2 border-[var(--gold)] bg-[#0c0e17] px-4 py-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="30"
+                    max="250"
+                    value={newBwDraft}
+                    onChange={(e) => setNewBwDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitNewWeight();
+                    }}
+                    autoFocus
+                    className="mono w-24 bg-transparent text-center text-3xl font-bold text-white tabular-nums outline-none"
+                  />
+                  <span className="mono text-lg font-bold text-[var(--gold)]">kg</span>
+                </div>
+
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.9 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    const cur = parseFloat(newBwDraft.replace(",", ".")) || bodyweight;
+                    setNewBwDraft(String(Math.min(250, Math.round((cur + 0.2) * 10) / 10)));
+                    sfx.tick();
+                  }}
+                  className="step-btn h-12 w-12 text-xl font-bold"
+                >
+                  +
+                </motion.button>
+              </div>
+
+              <div className="flex gap-2">
+                <PixelButton
+                  variant="gold"
+                  className="w-full py-3 text-[9px] font-bold"
+                  onClick={commitNewWeight}
+                >
+                  ✓ GUARDAR EN EL HISTORIAL
+                </PixelButton>
+              </div>
+            </div>
+          </Sheet>
+        )}
+      </AnimatePresence>
+    </Panel>
   );
 }

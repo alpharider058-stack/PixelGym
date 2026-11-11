@@ -2,10 +2,17 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  DEFAULT_EQUIP, EX, Equipped, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, getWeeklyRankForExp, isBodyweight, leagueOf, levelOf, localDayKey, weekOfUtc,
+  DEFAULT_EQUIP, DEFAULT_HERO_TRAITS, EX, Equipped, HeroTraits, ITEM, Muscle, Quest, Routine, Slot, TEMPLATES, Trophy, createTrophyForRank, defaultRestForExercise, e1rm, generateDefaultQuests, getCombatBonus, getWeeklyRankForExp, isBodyweight, leagueOf, levelOf, localDayKey, weekOfUtc,
 } from "./data";
 import { ACHIEVEMENTS, ACHIEVEMENT_MAP } from "./achievements";
 import { DEFAULT_PUSH_PREFS, PushPrefs } from "./push-types";
+
+export interface WeightEntry {
+  id: string;
+  date: number; // ms timestamp
+  kg: number;
+  note?: string;
+}
 
 export interface SetAwarded {
   exp: number;
@@ -208,6 +215,8 @@ interface State {
   restExName: string | null;
   owned: string[];
   equipped: Equipped;
+  heroTraits: HeroTraits;
+  weightHistory: WeightEntry[];
   customRoutines: Routine[];
   deletedRoutineIds: string[];
   trophies: Trophy[];
@@ -222,7 +231,9 @@ interface State {
   lastWorkoutSummary: WorkoutSummary | null;
 
   setName: (n: string) => void;
-  setBodyweight: (bw: number) => void;
+  setBodyweight: (bw: number, customDate?: number) => void;
+  deleteWeightEntry: (id: string) => void;
+  setHeroTraits: (patch: Partial<HeroTraits>) => void;
   toggleSound: () => void;
   setFocusMode: (v: boolean) => void;
   setPushPrefs: (patch: Partial<PushPrefs>) => void;
@@ -271,6 +282,12 @@ export const useGame = create<State>()(
       best: {}, lastSet: {}, history: [], active: null, restEndsAt: null, restExName: null,
       owned: Object.values(DEFAULT_EQUIP).concat(["shirt_none", "belt_none", "wrist_none", "aura_none"]),
       equipped: { ...DEFAULT_EQUIP },
+      heroTraits: { ...DEFAULT_HERO_TRAITS },
+      weightHistory: [
+        { id: "init_bw", date: Date.now() - 14 * 864e5, kg: 74 },
+        { id: "prev_bw", date: Date.now() - 7 * 864e5, kg: 74.5 },
+        { id: "curr_bw", date: Date.now(), kg: 75 },
+      ],
       customRoutines: [],
       deletedRoutineIds: [],
       trophies: [],
@@ -285,7 +302,36 @@ export const useGame = create<State>()(
       lastWorkoutSummary: null,
 
       setName: (name) => set({ name: name.slice(0, 12).toUpperCase() || "HÉROE" }),
-      setBodyweight: (bw) => set({ bodyweight: Math.max(30, Math.min(250, Math.round(bw * 10) / 10)) }),
+      setBodyweight: (bw, customDate) => {
+        const clamped = Math.max(30, Math.min(250, Math.round(bw * 10) / 10));
+        const timestamp = customDate || Date.now();
+        set((s) => {
+          const prevHist = Array.isArray(s.weightHistory) ? s.weightHistory : [];
+          // Deduplicate if updated within the same hour on the same day, otherwise append
+          const hourKey = new Date(timestamp).toISOString().slice(0, 13);
+          const filtered = prevHist.filter((e) => new Date(e.date).toISOString().slice(0, 13) !== hourKey);
+          const newEntry: WeightEntry = { id: uid(), date: timestamp, kg: clamped };
+          const updated = [...filtered, newEntry].sort((a, b) => a.date - b.date).slice(-200);
+          return {
+            bodyweight: clamped,
+            weightHistory: updated,
+          };
+        });
+      },
+      deleteWeightEntry: (id) =>
+        set((s) => {
+          const prevHist = Array.isArray(s.weightHistory) ? s.weightHistory : [];
+          const updated = prevHist.filter((e) => e.id !== id);
+          const latest = updated[updated.length - 1];
+          return {
+            weightHistory: updated,
+            bodyweight: latest ? latest.kg : s.bodyweight,
+          };
+        }),
+      setHeroTraits: (patch) =>
+        set((s) => ({
+          heroTraits: { ...(s.heroTraits || DEFAULT_HERO_TRAITS), ...patch },
+        })),
       toggleSound: () => set((s) => ({ sound: !s.sound })),
       setFocusMode: (v) => set({ focusMode: v }),
       setPushPrefs: (patch) => set((s) => ({ pushPrefs: { ...(s.pushPrefs || DEFAULT_PUSH_PREFS), ...patch } })),
@@ -936,6 +982,10 @@ export const useGame = create<State>()(
             ? state.bodyweight
             : 75;
         state.equipped = { ...DEFAULT_EQUIP, ...(state.equipped || {}) };
+        state.heroTraits = { ...DEFAULT_HERO_TRAITS, ...(state.heroTraits || {}) };
+        state.weightHistory = Array.isArray(state.weightHistory) && state.weightHistory.length
+          ? state.weightHistory
+          : [{ id: "init_bw", date: Date.now(), kg: state.bodyweight || 75 }];
         state.owned = Array.from(
           new Set([...(Array.isArray(state.owned) ? state.owned : []), ...Object.values(DEFAULT_EQUIP)])
         );

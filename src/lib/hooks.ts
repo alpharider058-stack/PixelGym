@@ -6,12 +6,13 @@ import { Muscle, levelOf, tierOf, EX, e1rm } from "./data";
 import type { AvatarCfg } from "./avatar";
 
 export function useMyAvatar(): AvatarCfg {
-  const { muscleVol, equipped, exp, pumpUntil } = useGame(
+  const { muscleVol, equipped, exp, pumpUntil, heroTraits } = useGame(
     useShallow((s) => ({
       muscleVol: s.muscleVol,
       equipped: s.equipped,
       exp: s.exp,
       pumpUntil: s.pumpUntil,
+      heroTraits: s.heroTraits,
     }))
   );
   return useMemo(() => {
@@ -27,8 +28,9 @@ export function useMyAvatar(): AvatarCfg {
       equipped,
       level: levelOf(exp),
       pump,
+      traits: heroTraits,
     };
-  }, [muscleVol, equipped, exp, pumpUntil]);
+  }, [muscleVol, equipped, exp, pumpUntil, heroTraits]);
 }
 
 export function useStats() {

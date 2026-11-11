@@ -1,5 +1,5 @@
 "use client";
-import { Equipped, ITEM, Muscle } from "./data";
+import { Equipped, HeroTraits, ITEM, Muscle, SKIN_PALETTES, HAIR_COLORS } from "./data";
 import { drawPetSprite } from "./pixelSprites";
 
 export { drawPetSprite };
@@ -9,34 +9,38 @@ export interface AvatarCfg {
   equipped: Equipped;
   level: number;
   pump?: Partial<Record<Muscle, boolean>>;
+  traits?: Partial<HeroTraits>;
 }
 
 export const AW = 64;
 export const AH = 72;
 
-const SKIN = "#e0a370", SHADE = "#b2703f", HI = "#f6c99c", OUT = "#24150e", VEIN = "#9a5a34";
+export const DEFAULT_SKIN = "#e0a370", DEFAULT_SHADE = "#b2703f", DEFAULT_HI = "#f6c99c", OUT = "#24150e", DEFAULT_VEIN = "#9a5a34";
 
 function drawGripFist(
   r: (x: number, y: number, w: number, h: number, col: string) => void,
   fx: number,
   fy: number,
+  skinCol: string,
+  shadeCol: string,
+  hiCol: string,
   horizontalBar = false
 ) {
   if (horizontalBar) {
     // 4 fingers curling tightly OVER a horizontal dumbbell bar + knuckle highlight
     r(fx - 2, fy - 2, 5, 4, OUT);
-    r(fx - 1, fy - 1, 3, 2, SKIN);
-    r(fx - 1, fy - 1, 2, 1, HI);
-    r(fx, fy + 1, 1, 1, SHADE);
+    r(fx - 1, fy - 1, 3, 2, skinCol);
+    r(fx - 1, fy - 1, 2, 1, hiCol);
+    r(fx, fy + 1, 1, 1, shadeCol);
   } else {
     // Closed warrior fist + curled fingers + clamped thumb OVER the weapon grip
     r(fx - 2, fy - 2, 4, 4, OUT);
-    r(fx - 1, fy - 1, 3, 3, SKIN);
-    r(fx, fy - 1, 2, 1, HI);      // crisp top knuckle highlight
-    r(fx, fy + 1, 2, 1, SHADE);   // bottom curled pinky finger shade
+    r(fx - 1, fy - 1, 3, 3, skinCol);
+    r(fx, fy - 1, 2, 1, hiCol);      // crisp top knuckle highlight
+    r(fx, fy + 1, 2, 1, shadeCol);   // bottom curled pinky finger shade
     // Thumb clamping upper-inner side of hilt
     r(fx - 2, fy - 2, 2, 2, OUT);
-    r(fx - 2, fy - 1, 1, 1, HI);
+    r(fx - 2, fy - 1, 1, 1, hiCol);
   }
 }
 
@@ -45,7 +49,10 @@ function drawWeaponSprite(
   weaponId: string | undefined,
   fx: number,
   fy: number,
-  t: number
+  t: number,
+  skinCol: string,
+  shadeCol: string,
+  hiCol: string
 ) {
   if (!weaponId || weaponId === "weapon_none") return;
 
@@ -62,7 +69,7 @@ function drawWeaponSprite(
     r(fx + 4, fy - 3, 2, 6, "#475569");
     r(fx + 5, fy - 3, 1, 5, "#e2e8f0");
     // Draw fingers OVER the center bar so the hand physically holds the dumbbell
-    drawGripFist(r, fx, fy, true);
+    drawGripFist(r, fx, fy, skinCol, shadeCol, hiCol, true);
   } else if (weaponId === "weapon_greatsword") {
     // Barbell Greatsword angled slightly outward-up (`↗`) in open air beside shoulder
     // Bottom handle + weighted pommel peeking below fist
@@ -86,7 +93,7 @@ function drawWeaponSprite(
       if (step < 11) r(bx + 1, by, 1, 1, "#ffffff");
     }
     r(fx + 2, fy - 17, 2, 1, "#ffffff"); // razor tip
-    drawGripFist(r, fx, fy, false);
+    drawGripFist(r, fx, fy, skinCol, shadeCol, hiCol, false);
   } else if (weaponId === "weapon_axe") {
     // Crimson Battle Axe held upright/slight-diagonal in open space above fist
     // Pommel peeking below hand
@@ -112,7 +119,7 @@ function drawWeaponSprite(
     r(ax + 5, ay - 1, 1, 3, "#ffffff");
     // Center bronze collar
     r(ax, ay - 3, 2, 7, "#b45309");
-    drawGripFist(r, fx, fy, false);
+    drawGripFist(r, fx, fy, skinCol, shadeCol, hiCol, false);
   } else if (weaponId === "weapon_hammer") {
     // Titan Lightning War-Hammer held heroically in fist (`fx, fy`)
     // Pommel below fist
@@ -140,7 +147,7 @@ function drawWeaponSprite(
       r(mx - 5, my - 4, 2, 2, "#3df2ff");
       r(mx + 5, my + 2, 2, 2, "#ffffff");
     }
-    drawGripFist(r, fx, fy, false);
+    drawGripFist(r, fx, fy, skinCol, shadeCol, hiCol, false);
   }
 }
 
@@ -157,6 +164,16 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
       r(x - hw, y + dy, hw * 2 + 1, 1, col);
     }
   };
+
+  /* ---------- skin & hair palette selection ---------- */
+  const skinPal = SKIN_PALETTES.find((p) => p.id === cfg.traits?.skinTone) ?? SKIN_PALETTES[0];
+  const SKIN = skinPal.skin;
+  const SHADE = skinPal.shade;
+  const HI = skinPal.hi;
+  const VEIN = skinPal.vein;
+
+  const customHairColor = HAIR_COLORS.find((hc) => hc.id === cfg.traits?.hairColor)?.color;
+  const facialHair = cfg.traits?.facialHair || "clean";
 
   /* ---------- background ---------- */
   const bg = ITEM[equipped.bg] ?? ITEM.bg_garage;
@@ -385,26 +402,56 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
     }
   }
 
-  /* ---------- face & hair ---------- */
+  /* ---------- face, beard & hair ---------- */
   const blink = Math.sin(t / 1700) > 0.97;
   r(cx - 3, 12 + bob, 2, blink ? 1 : 2, OUT); r(cx + 1, 12 + bob, 2, blink ? 1 : 2, OUT);
   r(cx - 2, 16 + bob, flex > 0 ? 4 : 3, 1, flex > 0 ? "#fff" : SHADE);
   r(cx - 5, 15 + bob, 1, 2, SHADE); r(cx + 4, 15 + bob, 1, 2, SHADE);
-  const hair = ITEM[equipped.hair] ?? ITEM.hair_short;
+
+  // Custom hair color or default item hair color
+  const hairItem = ITEM[equipped.hair] ?? ITEM.hair_short;
+  const hairCol = customHairColor || hairItem.color || "#2b1d14";
+  const beardCol = customHairColor || hairItem.color || "#2b1d14";
+
+  // Facial hair / beard rendering
+  if (facialHair === "stubble") {
+    // 3-day subtle pixel stubble around jaw & chin
+    r(cx - 4, 17 + bob, 1, 1, beardCol);
+    r(cx + 3, 17 + bob, 1, 1, beardCol);
+    r(cx - 3, 18 + bob, 1, 1, beardCol);
+    r(cx - 1, 18 + bob, 2, 1, beardCol);
+    r(cx + 2, 18 + bob, 1, 1, beardCol);
+  } else if (facialHair === "goatee") {
+    // Warrior Goatee under mouth & chin
+    r(cx - 2, 17 + bob, 4, 1, OUT);
+    r(cx - 1.5, 17 + bob, 3, 1, beardCol);
+    r(cx - 1, 18 + bob, 2, 2, beardCol);
+  } else if (facialHair === "full") {
+    // Full Spartan Warrior Beard wrapping jawline and chin
+    r(cx - 5, 16 + bob, 2, 3, OUT);
+    r(cx + 3, 16 + bob, 2, 3, OUT);
+    r(cx - 4, 16 + bob, 1, 2, beardCol);
+    r(cx + 3, 16 + bob, 1, 2, beardCol);
+    r(cx - 4, 17 + bob, 8, 2, OUT);
+    r(cx - 3, 17 + bob, 6, 2, beardCol);
+    r(cx - 2, 19 + bob, 4, 1, beardCol);
+    r(cx - 1, 20 + bob, 2, 1, beardCol);
+  }
+
   const hb = 7 + bob;
-  if (hair.id === "hair_mohawk") { r(cx - 1.5, hb - 5, 3, 7, hair.color); r(cx - 5, hb, 10, 1, SHADE); }
-  else if (hair.id === "hair_spiky") {
-    r(cx - 6, hb - 1, 12, 4, hair.color);
-    for (let k = 0; k < 5; k++) r(cx - 6 + k * 2.5, hb - 4 - (k % 2) * 2, 2, 4, hair.color);
-    r(cx - 6, hb + 3, 2, 3, hair.color); r(cx + 4, hb + 3, 2, 3, hair.color);
-  } else if (hair.id === "hair_long") {
-    r(cx - 6, hb - 2, 12, 4, hair.color); r(cx - 7, hb, 3, 14, hair.color); r(cx + 4, hb, 3, 14, hair.color);
-  } else { r(cx - 5, hb - 1, 10, 3, hair.color); }
+  if (hairItem.id === "hair_mohawk") { r(cx - 1.5, hb - 5, 3, 7, hairCol); r(cx - 5, hb, 10, 1, SHADE); }
+  else if (hairItem.id === "hair_spiky") {
+    r(cx - 6, hb - 1, 12, 4, hairCol);
+    for (let k = 0; k < 5; k++) r(cx - 6 + k * 2.5, hb - 4 - (k % 2) * 2, 2, 4, hairCol);
+    r(cx - 6, hb + 3, 2, 3, hairCol); r(cx + 4, hb + 3, 2, 3, hairCol);
+  } else if (hairItem.id === "hair_long") {
+    r(cx - 6, hb - 2, 12, 4, hairCol); r(cx - 7, hb, 3, 14, hairCol); r(cx + 4, hb, 3, 14, hairCol);
+  } else { r(cx - 5, hb - 1, 10, 3, hairCol); }
 
   // level-based headband glow
   if (cfg.level >= 15) r(cx - 5, hb + 2, 10, 1, "#ff3f6c");
 
   /* ---------- weapon (inside gripped right fist) & pet companion ---------- */
-  drawWeaponSprite(r, equipped.weapon, weaponGripX, weaponGripY, t);
+  drawWeaponSprite(r, equipped.weapon, weaponGripX, weaponGripY, t, SKIN, SHADE, HI);
   drawPetSprite(r, equipped.pet, 13, 66, t, 1);
 }
