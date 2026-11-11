@@ -408,8 +408,9 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   r(cx - 2, 16 + bob, flex > 0 ? 4 : 3, 1, flex > 0 ? "#fff" : SHADE);
   r(cx - 5, 15 + bob, 1, 2, SHADE); r(cx + 4, 15 + bob, 1, 2, SHADE);
 
-  // Custom hair color or default item hair color
-  const hairItem = ITEM[equipped.hair] ?? ITEM.hair_short;
+  // Hair style determined by trait or equipped item, custom color or default color
+  const effectiveHairId = cfg.traits?.hairStyle || equipped.hair || "hair_short";
+  const hairItem = ITEM[effectiveHairId] ?? ITEM.hair_short;
   const hairCol = customHairColor || hairItem.color || "#2b1d14";
   const beardCol = customHairColor || hairItem.color || "#2b1d14";
 

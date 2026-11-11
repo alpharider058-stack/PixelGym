@@ -183,6 +183,18 @@ export const SKIN_PALETTES: SkinPalette[] = [
   { id: "undead", name: "Espectral", skin: "#948bb5", shade: "#645a85", hi: "#bcb4db", vein: "#473d66" },
 ];
 
+export interface HairStyleOption {
+  id: string;
+  name: string;
+}
+
+export const HAIR_STYLES: HairStyleOption[] = [
+  { id: "hair_short", name: "Rapado / Corto" },
+  { id: "hair_mohawk", name: "Cresta Punk" },
+  { id: "hair_spiky", name: "Pelo Súper / Spiky" },
+  { id: "hair_long", name: "Melena Bárbara" },
+];
+
 export interface HairColorOption {
   id: string;
   name: string;
@@ -215,12 +227,14 @@ export const FACIAL_HAIR_OPTIONS: FacialHairOption[] = [
 
 export interface HeroTraits {
   skinTone: string;
+  hairStyle?: string;
   hairColor: string;
   facialHair: string;
 }
 
 export const DEFAULT_HERO_TRAITS: HeroTraits = {
   skinTone: "classic",
+  hairStyle: "hair_short",
   hairColor: "dark_brown",
   facialHair: "clean",
 };

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
 import { useGame, WorkoutLog } from "@/lib/store";
-import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf, SKIN_PALETTES, HAIR_COLORS, FACIAL_HAIR_OPTIONS, DEFAULT_HERO_TRAITS } from "@/lib/data";
+import { ITEMS, MUSCLE_LABEL, Muscle, Slot, TIER_KG, Trophy, TrophyGrade, expForLevel, getCombatBonus, tierOf, titleOf, SKIN_PALETTES, HAIR_COLORS, HAIR_STYLES, FACIAL_HAIR_OPTIONS, DEFAULT_HERO_TRAITS } from "@/lib/data";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import { useMyAvatar, useStats } from "@/lib/hooks";
 import { fxAt, haptic, sfx } from "@/lib/fx";
@@ -479,27 +479,33 @@ function HeroTraitsEditor() {
           <div className="space-y-2">
             <span className="pixel-title block text-[8px] text-[var(--gold)]">CORTE / ESTILO DE PELO</span>
             <div className="grid grid-cols-2 gap-2">
-              {ITEMS.filter((it) => it.slot === "hair").map((hairItem) => {
-                const on = (equipped?.hair ?? "hair_short") === hairItem.id;
+              {HAIR_STYLES.map((style) => {
+                const currentStyle = heroTraits.hairStyle || equipped?.hair || "hair_short";
+                const on = currentStyle === style.id;
+                const itemDef = ITEMS.find((it) => it.id === style.id);
                 return (
                   <motion.button
-                    key={hairItem.id}
+                    key={style.id}
                     whileHover={{ y: -1, scale: 1.02 }}
                     whileTap={{ scale: 0.96 }}
                     transition={APPLE_TAP}
                     onClick={() => {
-                      equip(hairItem.id);
+                      setHeroTraits({ hairStyle: style.id });
+                      equip(style.id);
                       sfx.tap();
                       haptic(6);
                     }}
-                    className={`flex items-center gap-2 border-2 p-2 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
+                    className={`flex items-center gap-2.5 border-2 p-2.5 text-left cursor-pointer transition-colors shadow-[2px_2px_0_#000] ${
                       on ? "border-[var(--gold)] bg-[#2a2410]" : "border-[#2c3350] bg-[#10131f]"
                     }`}
                   >
-                    <span className="pixelated inline-block h-4 w-4 shrink-0 border-2 border-black" style={{ background: hairItem.color }} />
+                    <span
+                      className="pixelated inline-block h-5 w-5 shrink-0 border-2 border-black"
+                      style={{ background: itemDef?.color || "#2b1d14" }}
+                    />
                     <div className="min-w-0">
-                      <span className="pixel-title block truncate text-[8px] text-white">{hairItem.name}</span>
-                      <span className="pixel-title text-[6.5px] text-[#8b93b8]">{on ? "✓ PUESTO" : "PONER"}</span>
+                      <span className="pixel-title block truncate text-[8.5px] text-white font-bold">{style.name}</span>
+                      <span className="pixel-title text-[7px] text-[#8b93b8]">{on ? "✓ PUESTO" : "ELEGIR"}</span>
                     </div>
                   </motion.button>
                 );
