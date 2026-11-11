@@ -35,6 +35,7 @@ interface Props {
   petId?: string;
   weaponId?: string;
   onHit?: () => void;
+  attackTrigger?: { id: number; dmg: number } | null;
 }
 
 interface Particle {
@@ -65,6 +66,24 @@ interface SlashFx {
   maxLife: number;
   color: string;
   angle: number;
+  thick?: number;
+}
+
+interface ArenaBolt {
+  pts: { x: number; y: number }[];
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+interface ShockRing {
+  cx: number;
+  cy: number;
+  rx: number;
+  maxRx: number;
+  life: number;
+  maxLife: number;
+  color: string;
 }
 
 // 180x140 buffer with locked S=2 pixel grid => 90x70 logical pixels (boss fills ~80% of chamber!)
@@ -81,6 +100,7 @@ export default function BossPixelCanvas({
   petId,
   weaponId,
   onHit,
+  attackTrigger,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef({ boss, hpRemaining, isDefeated, petId, weaponId, onHit });
@@ -92,8 +112,145 @@ export default function BossPixelCanvas({
   const particlesRef = useRef<Particle[]>([]);
   const projectilesRef = useRef<Projectile[]>([]);
   const slashesRef = useRef<SlashFx[]>([]);
+  const boltsRef = useRef<ArenaBolt[]>([]);
+  const ringsRef = useRef<ShockRing[]>([]);
+  const overlayRef = useRef<{ color: string; alpha: number }>({ color: "#ffffff", alpha: 0 });
+  const slowMoUntilRef = useRef(0);
+  const lastAttackIdRef = useRef(0);
   const petAttackAtRef = useRef(0);
   const animTimeRef = useRef(0);
+
+  const spawnArenaBolt = (targetX: number, targetY: number, color: string) => {
+    const startX = targetX + (Math.random() - 0.5) * 44;
+    const pts: { x: number; y: number }[] = [{ x: startX, y: 0 }];
+    let curX = startX;
+    const segs = 7;
+    for (let s = 1; s <= segs; s++) {
+      curX += Math.round(((Math.random() - 0.5) * 26) / S) * S;
+      curX = Math.max(12, Math.min(CW - 12, curX));
+      pts.push({
+        x: s === segs ? targetX : curX,
+        y: Math.round(((targetY * s) / segs) / S) * S,
+      });
+    }
+    boltsRef.current.push({ pts, color, life: 0, maxLife: 0.28 });
+  };
+
+  useEffect(() => {
+    if (!attackTrigger || !attackTrigger.id || lastAttackIdRef.current === attackTrigger.id) return;
+    lastAttackIdRef.current = attackTrigger.id;
+    const dmg = attackTrigger.dmg;
+    const tier = dmg >= 5000 ? 3 : dmg >= 1500 ? 2 : 1;
+
+    const { boss: curBoss, isDefeated: defeated, petId: curPet, weaponId: curWeapon } = propsRef.current;
+    const hasPet = !!(curPet && curPet !== "pet_none");
+    const targetX = hasPet ? 116 : 90;
+    const targetY = 74;
+    const wItem = curWeapon && curWeapon !== "weapon_none" ? ITEM[curWeapon] : undefined;
+    const wColor = wItem?.color2 || wItem?.color || curBoss.color;
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const fireWave = (waveIdx: number, count: number, slashAngle: number, boltCol?: string) => {
+      hitShakeRef.current = Math.max(hitShakeRef.current, tier === 3 ? 13 : tier === 2 ? 9.5 : 6);
+      hitFlashRef.current = Math.max(hitFlashRef.current, tier === 3 ? 12 : tier === 2 ? 8 : 5);
+      slamRef.current = tier === 3 ? 2.1 : tier === 2 ? 1.5 : 1;
+
+      slashesRef.current.push({
+        life: 0,
+        maxLife: tier === 3 ? 0.34 : 0.26,
+        color: waveIdx === 1 ? "#ffe14d" : waveIdx === 2 ? "#3df2ff" : defeated ? "#7dff6a" : wColor,
+        angle: slashAngle,
+        thick: tier >= 2 ? 4 : 2,
+      });
+
+      if (boltCol) {
+        spawnArenaBolt(targetX + (waveIdx - 1) * 14, targetY + 12, boltCol);
+      }
+
+      if (tier >= 2) {
+        ringsRef.current.push({
+          cx: targetX,
+          cy: 126,
+          rx: 8,
+          maxRx: tier === 3 ? 82 : 56,
+          life: 0,
+          maxLife: 0.38,
+          color: boltCol || wColor,
+        });
+      }
+
+      if (hasPet && curPet) {
+        const petItem = ITEM[curPet];
+        projectilesRef.current.push({
+          x: 36,
+          y: 108 - waveIdx * 6,
+          vx: 250 + waveIdx * 25,
+          vy: -82,
+          petId: curPet,
+          color: petItem?.color || "#a78bfa",
+          color2: petItem?.color2 || "#ffe14d",
+          age: 0,
+        });
+        petAttackAtRef.current = animTimeRef.current;
+      }
+
+      for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = (tier === 3 ? 110 : 75) + Math.random() * (tier === 3 ? 185 : 130);
+        particlesRef.current.push({
+          x: targetX + (Math.random() - 0.5) * 26,
+          y: targetY + (Math.random() - 0.5) * 26,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd - (tier === 3 ? 30 : 0),
+          size: tier >= 2 && Math.random() > 0.3 ? 4 : 2,
+          color:
+            i % 4 === 0
+              ? "#ffffff"
+              : i % 3 === 0
+              ? "#ffe14d"
+              : i % 2 === 0
+              ? tier === 3
+                ? "#ff3f6c"
+                : "#3df2ff"
+              : wColor,
+          alpha: 1,
+          life: 0,
+          maxLife: 0.4 + Math.random() * 0.34,
+        });
+      }
+    };
+
+    if (tier === 1) {
+      overlayRef.current = { color: "#ffffff", alpha: 0.25 };
+      fireWave(0, 24, -0.65);
+    } else if (tier === 2) {
+      overlayRef.current = { color: "#3df2ff", alpha: 0.42 };
+      fireWave(0, 26, -0.75, "#3df2ff");
+      timers.push(setTimeout(() => fireWave(1, 26, 0.75, "#ffe14d"), 110));
+    } else {
+      slowMoUntilRef.current = performance.now() + 140;
+      overlayRef.current = { color: "#000000", alpha: 0.6 };
+      fireWave(0, 32, -0.85, "#ffe14d");
+      timers.push(
+        setTimeout(() => {
+          overlayRef.current = { color: "#ffe14d", alpha: 0.55 };
+          fireWave(1, 34, 0.85, "#3df2ff");
+        }, 120)
+      );
+      timers.push(
+        setTimeout(() => {
+          overlayRef.current = { color: "#ff3f6c", alpha: 0.45 };
+          fireWave(2, 38, -0.25, "#ffe14d");
+          spawnArenaBolt(targetX - 18, targetY + 18, "#3df2ff");
+        }, 250)
+      );
+    }
+
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [attackTrigger]);
 
   const handleTap = () => {
     const { boss: curBoss, isDefeated: defeated, petId: curPet, weaponId: curWeapon, onHit: tapCb } = propsRef.current;
@@ -279,7 +436,8 @@ export default function BossPixelCanvas({
     const render = (now: number) => {
       raf = 0;
       const rawDt = lastTime > 0 ? (now - lastTime) / 1000 : 0.016;
-      const dt = Math.min(0.05, Math.max(0, rawDt));
+      const timeScale = now < slowMoUntilRef.current ? 0.28 : 1;
+      const dt = Math.min(0.05, Math.max(0, rawDt)) * timeScale;
       lastTime = now;
       animTimeRef.current = Math.max(0, animTimeRef.current + dt);
       const animTime = animTimeRef.current;
@@ -570,7 +728,46 @@ export default function BossPixelCanvas({
         }
       }
 
-      /* ---------------- WEAPON SLASH ARCS ON TAP ---------------- */
+      /* ---------------- EXPANDING PIXEL SHOCKWAVE RINGS ---------------- */
+      for (let i = ringsRef.current.length - 1; i >= 0; i--) {
+        const rg = ringsRef.current[i];
+        rg.life += dt;
+        if (rg.life >= rg.maxLife) {
+          ringsRef.current.splice(i, 1);
+          continue;
+        }
+        const prog = rg.life / rg.maxLife;
+        const r = rg.rx + (rg.maxRx - rg.rx) * Math.sqrt(prog);
+        ctx.globalAlpha = 1 - prog;
+        px(rg.cx - r, rg.cy - 2, r * 2, 2, rg.color);
+        px(rg.cx - r + 4, rg.cy + 2, Math.max(4, (r - 4) * 2), 2, "#ffffff");
+        ctx.globalAlpha = 1;
+      }
+
+      /* ---------------- ARENA LIGHTNING BOLTS (CRITICAL / CATACLYSM) ---------------- */
+      for (let i = boltsRef.current.length - 1; i >= 0; i--) {
+        const b = boltsRef.current[i];
+        b.life += dt;
+        if (b.life >= b.maxLife) {
+          boltsRef.current.splice(i, 1);
+          continue;
+        }
+        ctx.globalAlpha = Math.max(0, 1 - b.life / b.maxLife);
+        for (let k = 0; k < b.pts.length - 1; k++) {
+          const p0 = b.pts[k];
+          const p1 = b.pts[k + 1];
+          const segs = 4;
+          for (let m = 0; m <= segs; m++) {
+            const mx = p0.x + ((p1.x - p0.x) * m) / segs;
+            const my = p0.y + ((p1.y - p0.y) * m) / segs;
+            px(mx - 2, my - 2, 6, 6, b.color);
+            px(mx, my, 2, 2, "#ffffff");
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      /* ---------------- WEAPON SLASH ARCS ON TAP / ATTACK ---------------- */
       for (let i = slashesRef.current.length - 1; i >= 0; i--) {
         const sl = slashesRef.current[i];
         sl.life += dt;
@@ -579,15 +776,25 @@ export default function BossPixelCanvas({
           continue;
         }
         const prog = sl.life / sl.maxLife;
+        const extra = sl.thick ?? 2;
         ctx.globalAlpha = 1 - prog;
-        for (let step = -7; step <= 7; step++) {
+        for (let step = -8; step <= 8; step++) {
           const sx = bx + step * 4;
           const sy = by - 50 + step * (sl.angle * 4);
-          const thickness = step > -2 && step < 2 ? 4 : 2;
+          const thickness = step > -3 && step < 3 ? 2 + extra : extra;
           px(sx - 2, sy - 2, thickness + 2, thickness + 2, "#ffffff");
           px(sx, sy, thickness, thickness, sl.color);
         }
         ctx.globalAlpha = 1;
+      }
+
+      /* ---------------- BRIEF IMPACT FLASH STROBE ---------------- */
+      if (overlayRef.current.alpha > 0.01) {
+        ctx.globalAlpha = overlayRef.current.alpha;
+        ctx.fillStyle = overlayRef.current.color;
+        ctx.fillRect(0, 0, CW, CH);
+        ctx.globalAlpha = 1;
+        overlayRef.current.alpha = Math.max(0, overlayRef.current.alpha - dt * 3.4);
       }
 
       if (visible && !document.hidden) {
@@ -627,7 +834,7 @@ export default function BossPixelCanvas({
       whileHover={{ scale: 1.015 }}
       whileTap={{ scale: 0.95 }}
       transition={APPLE_TAP}
-      className="relative flex w-full max-w-[304px] cursor-pointer items-center justify-center border-2 border-[#2c3350] bg-[#0b0d17] drop-shadow-[0_8px_16px_rgba(0,0,0,0.85)] select-none overflow-hidden"
+      className="relative flex w-full max-w-[248px] sm:max-w-[304px] cursor-pointer items-center justify-center border-2 border-[#2c3350] bg-[#0b0d17] drop-shadow-[0_8px_16px_rgba(0,0,0,0.85)] select-none overflow-hidden"
       title="¡Toca al jefe para desafiarlo!"
     >
       <canvas

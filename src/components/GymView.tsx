@@ -46,6 +46,7 @@ function RoutinePicker() {
   const name = useGame((s) => s.name);
   const activeTitle = useGame((s) => s.activeTitle);
   const streak = useGame((s) => s.streak);
+  const pendingBossDmg = useGame((s) => s.pendingBossDmg || 0);
   const myAvatar = useMyAvatar();
   const stats = useStats();
   const [creating, setCreating] = useState(false);
@@ -69,7 +70,7 @@ function RoutinePicker() {
         transition={SPRING}
         className="panel p-3.5 sm:p-4"
       >
-        <div className="flex items-center gap-4 sm:gap-6 px-1">
+        <div className="flex items-center gap-3 sm:gap-5 px-1">
           <motion.div
             layoutId="hero-avatar-box"
             whileHover={{ scale: 1.04 }}
@@ -80,7 +81,7 @@ function RoutinePicker() {
             <Avatar cfg={myAvatar} scale={1.8} interactive animate />
           </motion.div>
           <motion.div
-            className="min-w-0 flex-1 space-y-2 pl-3 sm:pl-4 pr-1.5"
+            className="min-w-0 flex-1 space-y-2 pl-1.5 sm:pl-3 pr-1"
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ ...APPLE_SPRING, delay: 0.04 }}
@@ -95,8 +96,8 @@ function RoutinePicker() {
                 LV {stats.level}
               </motion.span>
             </div>
-            <div className="pixel-title text-[7.5px] text-[#8b93b8] truncate">
-              {(activeTitle || titleOf(stats.level)).toUpperCase()} · <span className="text-[var(--gold)]">🔥 RACHA {streak}D</span>
+            <div className="pixel-title text-[7px] text-[#8b93b8] truncate">
+              {(activeTitle || titleOf(stats.level)).toUpperCase()} · <span className="text-[var(--gold)]">🔥 {streak}D</span>
             </div>
 
             {/* EXP Bar: fills left to right on morph */}
@@ -201,8 +202,10 @@ function RoutinePicker() {
               <div className={`pixel-title text-[8.5px] leading-tight font-bold truncate ${tab === "boss" ? "text-white" : "text-[#ff6b8b]"}`}>
                 RAID BOSS
               </div>
-              <div className={`pixel-title text-[6.5px] leading-none mt-0.5 truncate ${tab === "boss" ? "text-white/80" : "text-[#8b93b8]"}`}>
-                JEFE SEMANAL
+              <div className={`pixel-title text-[6px] sm:text-[6.5px] leading-none mt-0.5 truncate ${tab === "boss" ? "text-white/80" : pendingBossDmg > 0 ? "text-[var(--gold)] font-bold" : "text-[#8b93b8]"}`}>
+                {tab !== "boss" && pendingBossDmg > 0
+                  ? `⚔${pendingBossDmg >= 1000 ? `${(pendingBossDmg / 1000).toFixed(1)}K` : pendingBossDmg} LISTO`
+                  : "JEFE SEMANAL"}
               </div>
             </div>
           </div>
@@ -211,7 +214,11 @@ function RoutinePicker() {
               ACTIVO
             </span>
           ) : (
-            <span className="h-2 w-2 rounded-full bg-[var(--red)] animate-pulse shrink-0 mr-1" />
+            <span
+              className={`h-2 w-2 rounded-full animate-pulse shrink-0 mr-1 ${
+                pendingBossDmg > 0 ? "bg-[var(--gold)] shadow-[0_0_6px_var(--gold)]" : "bg-[var(--red)]"
+              }`}
+            />
           )}
         </motion.button>
       </div>
@@ -862,13 +869,22 @@ function ActiveLogger() {
       const summary = useGame.getState().lastWorkoutSummary;
       const totalExp = summary?.exp ?? log.exp;
       const totalGold = summary?.gold ?? (log.totalGold ?? 20);
+      const isHeavy = (summary?.tonnage ?? log.tonnage) >= 1500 || (summary?.prs ?? log.prs) > 0;
       sfx.levelUp();
-      haptic([20, 40, 20, 40, 60]);
+      if (isHeavy) {
+        sfx.lightning();
+        fx({
+          kind: "surge",
+          mode: "both",
+          intensity: (summary?.tonnage ?? log.tonnage) >= 4000 ? 3 : 2,
+        });
+      }
+      haptic(isHeavy ? [30, 40, 30, 40, 90] : [20, 40, 20, 40, 60]);
       if (el) {
         fxAt(el, (x, y) => [
           { kind: "burst", x, y, big: true, count: 50 },
           { kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${totalExp} EXP  +${totalGold} ORO`, color: "#ffe14d" },
-          { kind: "shake", power: 3 },
+          { kind: "shake", power: isHeavy ? 5 : 3 },
         ]);
       } else {
         fx({ kind: "text", x: innerWidth / 2, y: innerHeight / 2, text: `+${totalExp} EXP  +${totalGold} ORO`, color: "#ffe14d" });
@@ -1394,7 +1410,7 @@ const SetRow = memo(function SetRow({ i, j }: { i: number; j: number }) {
       return effects;
     });
     if (res.pr) {
-      setTimeout(() => { sfx.pr(); fx({ kind: "pr", name: EX[exId!]?.name ?? "" }); fxAt(el, (x, y) => [{ kind: "text", x, y: y - 40, text: `+${res.strGain} STR`, color: "#ff3f6c" }]); }, 120);
+      setTimeout(() => { sfx.pr(); sfx.lightning(); fx({ kind: "pr", name: EX[exId!]?.name ?? "" }); fxAt(el, (x, y) => [{ kind: "text", x, y: y - 40, text: `+${res.strGain} STR`, color: "#ff3f6c" }]); }, 120);
     }
     if (res.levelUp) setTimeout(() => { sfx.levelUp(); fx({ kind: "levelup", level: res.levelUp! }); }, res.pr ? 2100 : 200);
   };
@@ -1628,32 +1644,46 @@ function getSharedRestAudio(): HTMLAudioElement | null {
   return sharedRestAudio;
 }
 
+const REST_MEDIA_ARTWORK = [
+  { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+  { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+];
+
 function formatClockSec(sec: number): string {
   const s = Math.max(0, Math.ceil(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function updateRestMediaMetadata(exName?: string | null, totalSec?: number) {
+function buildRestBar(leftSec: number, totalSec: number, segments = 10): string {
+  const safeTotal = Math.max(1, totalSec);
+  const ratio = Math.max(0, Math.min(1, 1 - leftSec / safeTotal));
+  const filled = Math.round(ratio * segments);
+  return "▓".repeat(filled) + "░".repeat(Math.max(0, segments - filled));
+}
+
+function updateRestMediaMetadata(exName?: string | null, leftSec?: number, totalSec?: number) {
   if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
   try {
     if (typeof MediaMetadata !== "undefined") {
+      const bar =
+        typeof leftSec === "number" && typeof totalSec === "number"
+          ? `${buildRestBar(leftSec, totalSec, 10)} `
+          : "";
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: exName ? `Descanso · ${exName}` : "Descanso PixelGym",
-        artist: totalSec
-          ? `Siguiente serie en ${formatClockSec(totalSec)} · ⏭ +30s · ⏮ -15s`
-          : "Siguiente serie lista pronto",
+        title: exName ? `⏱ Descanso · ${exName}` : "⏱ Descanso PixelGym",
+        artist:
+          typeof leftSec === "number"
+            ? `${bar}${formatClockSec(leftSec)} · ⏭ +30s`
+            : "Siguiente serie lista pronto",
         album: "PixelGym RPG",
-        artwork: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-        ],
+        artwork: REST_MEDIA_ARTWORK,
       });
     }
     navigator.mediaSession.playbackState = "playing";
   } catch {}
 }
 
-function unlockSilentRestAudio(exName?: string | null, sec?: number) {
+function unlockSilentRestAudio(exName?: string | null, leftSec?: number, totalSec?: number) {
   const audio = getSharedRestAudio();
   if (audio) {
     try {
@@ -1661,7 +1691,7 @@ function unlockSilentRestAudio(exName?: string | null, sec?: number) {
       if (p && typeof p.catch === "function") p.catch(() => {});
     } catch {}
   }
-  updateRestMediaMetadata(exName, sec);
+  updateRestMediaMetadata(exName, leftSec, totalSec ?? leftSec);
 }
 
 function syncRestMediaPosition(durationSec: number, leftSec: number) {
@@ -1733,10 +1763,53 @@ export function RestTimer({
   const prevEndsAtRef = useRef<number | null>(null);
   const remoteScheduledRef = useRef<boolean>(false);
   const barDurRef = useRef<number>(90000);
+  const [notifPerm, setNotifPerm] = useState<string>(() =>
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
 
   useEffect(() => {
     return () => {
       clearSilentRestMedia();
+    };
+  }, []);
+
+  // Listen to lock-screen SW notification action clicks (+30s / Saltar)
+  useEffect(() => {
+    const handleAction = (msg: { type?: string; action?: string; endsAt?: number }) => {
+      if (!msg || msg.type !== "REST_TIMER_ACTION") return;
+      if (msg.action === "skip") {
+        useGame.getState().stopRest();
+        sfx.tap();
+      } else if (msg.action === "add30" && typeof msg.endsAt === "number") {
+        const cur = useGame.getState();
+        if (Math.abs((cur.restEndsAt || 0) - msg.endsAt) > 1200) {
+          useGame.setState({ restEndsAt: msg.endsAt });
+        }
+        const rem = Math.max(0, Math.ceil((msg.endsAt - Date.now()) / 1000));
+        updateRestMediaMetadata(cur.restExName, rem, Math.max(rem, Math.round(barDurRef.current / 1000) + 30));
+        sfx.tick();
+      }
+    };
+
+    const onSwMsg = (e: MessageEvent) => handleAction(e.data);
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel("pixelgym-rest");
+        bc.onmessage = (e) => handleAction(e.data);
+      }
+    } catch {}
+
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onSwMsg);
+    }
+    return () => {
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onSwMsg);
+      }
+      try {
+        bc?.close();
+      } catch {}
     };
   }, []);
 
@@ -1764,6 +1837,10 @@ export function RestTimer({
     }
 
     let effectAlive = true;
+    const total = Math.max(1000, endsAt - Date.now());
+    barDurRef.current = total;
+    const totalSec = Math.ceil(total / 1000);
+    const canLiveWidget = typeof Notification !== "undefined" && Notification.permission === "granted";
 
     const postSwTimer = (notifyAt: number) => {
       if (typeof navigator !== "undefined" && "serviceWorker" in navigator && navigator.serviceWorker.controller) {
@@ -1771,6 +1848,8 @@ export function RestTimer({
           type: "START_REST_TIMER",
           endsAt,
           notifyAt,
+          totalMs: total,
+          showLiveWidget: canLiveWidget,
           exerciseName: restExName || undefined,
         });
       }
@@ -1803,12 +1882,8 @@ export function RestTimer({
       postSwTimer(endsAt);
     }
 
-    const total = Math.max(1000, endsAt - Date.now());
-    barDurRef.current = total;
-    const totalSec = Math.ceil(total / 1000);
-
     // Sync Lock-Screen MediaSession card & handlers
-    updateRestMediaMetadata(restExName, totalSec);
+    updateRestMediaMetadata(restExName, totalSec, totalSec);
     const audio = getSharedRestAudio();
     if (audio && audio.paused) {
       try {
@@ -1829,7 +1904,7 @@ export function RestTimer({
         if (!st.restEndsAt) return;
         const nextSec = Math.max(0, (st.restEndsAt - Date.now()) / 1000) + 30;
         st.startRest(nextSec, st.restExName || undefined);
-        unlockSilentRestAudio(st.restExName, nextSec);
+        unlockSilentRestAudio(st.restExName, Math.ceil(nextSec), Math.ceil(nextSec));
         sfx.tick();
       };
       const sub15FromMedia = () => {
@@ -1837,7 +1912,7 @@ export function RestTimer({
         if (!st.restEndsAt) return;
         const nextSec = Math.max(1, (st.restEndsAt - Date.now()) / 1000 - 15);
         st.startRest(nextSec, st.restExName || undefined);
-        unlockSilentRestAudio(st.restExName, nextSec);
+        unlockSilentRestAudio(st.restExName, Math.ceil(nextSec), Math.ceil(nextSec));
         sfx.tick();
       };
       const skipFromMedia = () => {
@@ -1860,7 +1935,7 @@ export function RestTimer({
         const st = useGame.getState();
         if (!st.restEndsAt) return;
         const rem = Math.max(0, (st.restEndsAt - Date.now()) / 1000);
-        unlockSilentRestAudio(st.restExName, Math.ceil(rem));
+        unlockSilentRestAudio(st.restExName, Math.ceil(rem), Math.max(1, Math.round(barDurRef.current / 1000)));
         syncRestMediaPosition(Math.max(1, barDurRef.current / 1000), rem);
       });
     }
@@ -1876,13 +1951,24 @@ export function RestTimer({
           fx({ kind: "text", x: window.innerWidth / 2, y: window.innerHeight / 2, text: "¡DESCANSO TERMINADO!", color: "#3df2ff" });
         }
         stop();
-      } else if (document.visibilityState === "visible") {
-        syncRestMediaPosition(Math.max(1, barDurRef.current / 1000), left / 1000);
+      } else {
+        const rem = Math.ceil(left / 1000);
+        updateRestMediaMetadata(restExName, rem, totalSec);
+        syncRestMediaPosition(totalSec, left / 1000);
       }
     };
 
     document.addEventListener("visibilitychange", checkResume);
     window.addEventListener("focus", checkResume);
+
+    // Background-resilient 1s lock-screen metadata & position ticker
+    const mediaTicker = setInterval(() => {
+      const left = endsAt - Date.now();
+      if (left <= 0) return;
+      const rem = Math.ceil(left / 1000);
+      updateRestMediaMetadata(restExName, rem, totalSec);
+      syncRestMediaPosition(totalSec, left / 1000);
+    }, 1000);
 
     const loop = () => {
       const left = endsAt - Date.now();
@@ -1908,11 +1994,22 @@ export function RestTimer({
     raf = requestAnimationFrame(loop);
     return () => {
       effectAlive = false;
+      clearInterval(mediaTicker);
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", checkResume);
       window.removeEventListener("focus", checkResume);
     };
-  }, [endsAt, restExName, restPushOn, stop]);
+  }, [endsAt, restExName, restPushOn, stop, notifPerm]);
+
+  const requestLockScreenWidget = async () => {
+    if (typeof Notification === "undefined") return;
+    try {
+      const res = await Notification.requestPermission();
+      setNotifPerm(res);
+      sfx.coin();
+      haptic(10);
+    } catch {}
+  };
 
   return (
     <AnimatePresence>
@@ -1924,7 +2021,8 @@ export function RestTimer({
           transition={APPLE_BOUNCE}
           onClick={(e) => {
             if ((e.target as HTMLElement).closest("button")) return;
-            unlockSilentRestAudio(restExName, Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+            const rem = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+            unlockSilentRestAudio(restExName, rem, Math.max(rem, Math.round(barDurRef.current / 1000)));
             if (showQuickReturn && onReturnToWorkout) {
               sfx.whoosh();
               haptic(8);
@@ -1938,7 +2036,7 @@ export function RestTimer({
           } ${showQuickReturn ? "cursor-pointer ring-2 ring-[var(--cyan)]/70" : ""}`}
           style={{ x: "-50%" }}
         >
-          {/* Context row: DESCANSO + Current Exercise Name + Return Hint */}
+          {/* Context row: DESCANSO + Current Exercise Name + Lock-Screen Widget Prompt / Return Hint */}
           <div className="mb-1 flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="pixel-title text-[8px] text-[var(--cyan)] shrink-0">⏱ DESCANSO</span>
@@ -1946,11 +2044,23 @@ export function RestTimer({
                 <span className="mono text-xs text-white truncate">· {restExName}</span>
               )}
             </div>
-            {showQuickReturn && (
-              <span className="pixel-title text-[6.5px] text-[var(--gold)] animate-pulse leading-tight shrink-0">
-                ▶ VOLVER
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {notifPerm === "default" && (
+                <button
+                  type="button"
+                  onClick={requestLockScreenWidget}
+                  className="pixel-title border border-[var(--cyan)]/60 bg-[#0d2330] px-1.5 py-0.5 text-[5.5px] text-[var(--cyan)] hover:bg-[#15364a]"
+                  title="Activar barra de progreso en pantalla de bloqueo"
+                >
+                  🔔 PANTALLA BLOQUEO
+                </button>
+              )}
+              {showQuickReturn && (
+                <span className="pixel-title text-[6.5px] text-[var(--gold)] animate-pulse leading-tight shrink-0">
+                  ▶ VOLVER
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Countdown + Quick Adjust Controls (-15s / +30s / SKIP) */}

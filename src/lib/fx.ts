@@ -96,6 +96,20 @@ export const sfx = {
   achievement: () => {
     [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.15, "square", 0.07, i * 0.08));
   },
+  summon: () => {
+    [440, 554, 659, 880].forEach((f, i) => tone(f, 0.12, "triangle", 0.07, i * 0.055));
+  },
+  lightning: () => {
+    noise(0.18, 0.12);
+    tone(980, 0.09, "sawtooth", 0.09, 0, 220);
+    tone(1560, 0.07, "square", 0.07, 0.03, 420);
+  },
+  cataclysm: () => {
+    noise(0.35, 0.18);
+    tone(170, 0.3, "sawtooth", 0.17, 0, 38);
+    tone(1320, 0.14, "square", 0.1, 0.02, 240);
+    tone(659, 0.22, "square", 0.09, 0.12, 95);
+  },
 };
 
 export const haptic = (p: number | number[] = 8) => {
@@ -108,7 +122,8 @@ export type FxEvent =
   | { kind: "text"; x: number; y: number; text: string; color?: string }
   | { kind: "shake"; power?: number }
   | { kind: "levelup"; level: number }
-  | { kind: "pr"; name: string };
+  | { kind: "pr"; name: string }
+  | { kind: "surge"; mode?: "lightning" | "flame" | "both"; intensity?: 1 | 2 | 3 };
 
 type L = (e: FxEvent) => void;
 const listeners = new Set<L>();

@@ -10,6 +10,8 @@ export interface AvatarCfg {
   level: number;
   pump?: Partial<Record<Muscle, boolean>>;
   traits?: Partial<HeroTraits>;
+  berserk?: boolean;
+  timeOverrideHour?: number;
 }
 
 export const AW = 64;
@@ -175,21 +177,71 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   const customHairColor = HAIR_COLORS.find((hc) => hc.id === cfg.traits?.hairColor)?.color;
   const facialHair = cfg.traits?.facialHair || "clean";
 
-  /* ---------- background ---------- */
+  /* ---------- background with time-of-day dynamic lighting ---------- */
   const bg = ITEM[equipped.bg] ?? ITEM.bg_garage;
-  r(0, 0, AW, AH, bg.color);
-  for (let i = 0; i < 6; i++) r(0, 52 + i * 3, AW, 3, i % 2 ? bg.color : bg.color2!);
+  const hour = cfg.timeOverrideHour !== undefined ? cfg.timeOverrideHour : new Date().getHours();
+  const timeOfDay = hour >= 6 && hour < 14 ? "morning" : hour >= 14 && hour < 21 ? "evening" : "night";
+
   if (bg.id === "bg_cyber") {
-    for (let x = 0; x < AW; x += 8) r(x + ((t / 60) % 8), 52, 1, 20, "#ff2bd6");
+    const skyCol = timeOfDay === "morning" ? "#1d1042" : timeOfDay === "evening" ? "#260a38" : "#0b031a";
+    const gridCol = timeOfDay === "morning" ? "#3df2ff" : timeOfDay === "evening" ? "#ff7a1a" : "#ff2bd6";
+    r(0, 0, AW, AH, skyCol);
+    for (let i = 0; i < 6; i++) r(0, 52 + i * 3, AW, 3, i % 2 ? skyCol : "#1f0836");
+    for (let x = 0; x < AW; x += 8) r(x + ((t / 60) % 8), 52, 1, 20, gridCol);
     for (let y = 0; y < 50; y += 6) r(0, y, AW, 1, "#2a0a50");
-    r(4, 6, 6, 6, "#ffe14d");
+    r(4, 6, 6, 6, timeOfDay === "night" ? "#3df2ff" : "#ffe14d");
   } else if (bg.id === "bg_beach") {
-    r(0, 0, AW, 30, "#ffb27a"); r(0, 30, AW, 22, "#3a8ad6"); disc(50, 14, 6, "#fff1a8");
+    const sky = timeOfDay === "morning" ? "#6ec6ff" : timeOfDay === "evening" ? "#d95b72" : "#101633";
+    const sea = timeOfDay === "morning" ? "#2589d8" : timeOfDay === "evening" ? "#452e70" : "#091836";
+    const sand1 = timeOfDay === "morning" ? "#f6d796" : timeOfDay === "evening" ? "#c27a56" : "#4a4359";
+    const sand2 = timeOfDay === "morning" ? "#e0b86e" : timeOfDay === "evening" ? "#995344" : "#342f42";
+    r(0, 0, AW, 30, sky);
+    if (timeOfDay === "evening") r(0, 18, AW, 12, "#ff8b4a");
+    if (timeOfDay === "night") {
+      r(8, 6, 1, 1, "#fff"); r(18, 12, 1, 1, "#3df2ff"); r(36, 5, 1, 1, "#fff"); r(56, 20, 1, 1, "#fff");
+      disc(50, 12, 5, "#e2e8f0");
+    } else {
+      disc(50, timeOfDay === "morning" ? 10 : 18, 6, timeOfDay === "morning" ? "#fff1a8" : "#ffe14d");
+    }
+    r(0, 30, AW, 22, sea);
+    // water shimmer
+    r(46, 33, 8, 1, timeOfDay === "evening" ? "#ff7a1a" : "#ffffff");
+    for (let i = 0; i < 6; i++) r(0, 52 + i * 3, AW, 3, i % 2 ? sand1 : sand2);
   } else if (bg.id === "bg_gym") {
-    for (let x = 2; x < AW; x += 14) { r(x, 6, 10, 18, "#0f1a26"); r(x + 1, 7, 8, 16, "#284a6a"); }
+    const wall = timeOfDay === "morning" ? "#23364a" : timeOfDay === "evening" ? "#28223d" : "#101724";
+    const floor1 = timeOfDay === "morning" ? "#3a5a7a" : timeOfDay === "evening" ? "#3a2e52" : "#172030";
+    const floor2 = timeOfDay === "morning" ? "#2a445e" : timeOfDay === "evening" ? "#271f38" : "#0f1521";
+    r(0, 0, AW, 52, wall);
+    for (let i = 0; i < 6; i++) r(0, 52 + i * 3, AW, 3, i % 2 ? floor1 : floor2);
+    const winSky = timeOfDay === "morning" ? "#8be0ff" : timeOfDay === "evening" ? "#ff7e5f" : "#0b1124";
+    for (let x = 2; x < AW; x += 14) {
+      r(x, 6, 10, 18, "#0f1a26");
+      r(x + 1, 7, 8, 16, winSky);
+      if (timeOfDay === "night") r(x + 1, 7, 8, 2, "#3df2ff"); // night cyber neon strip
+      if (timeOfDay === "morning") {
+        // soft diagonal sunlight beam
+        r(x + 2, 24, 6, 14, "rgba(255, 240, 170, 0.14)");
+      }
+    }
   } else {
-    for (let x = 0; x < AW; x += 10) r(x, 0, 1, 52, "#3a2a20");
+    // bg_garage
+    const wall = timeOfDay === "morning" ? "#362720" : timeOfDay === "evening" ? "#331c28" : "#181622";
+    const slat = timeOfDay === "morning" ? "#4d3629" : timeOfDay === "evening" ? "#472536" : "#221f30";
+    const floor1 = timeOfDay === "morning" ? "#5a3a2a" : timeOfDay === "evening" ? "#4f2a38" : "#262335";
+    const floor2 = timeOfDay === "morning" ? "#3d261c" : timeOfDay === "evening" ? "#361a26" : "#1a1826";
+    r(0, 0, AW, 52, wall);
+    for (let i = 0; i < 6; i++) r(0, 52 + i * 3, AW, 3, i % 2 ? floor1 : floor2);
+    for (let x = 0; x < AW; x += 10) r(x, 0, 1, 52, slat);
     r(4, 38, 10, 2, "#777"); disc(4, 39, 3, "#333"); disc(14, 39, 3, "#333");
+    if (timeOfDay === "morning") {
+      r(0, 0, AW, 8, "rgba(255, 225, 130, 0.15)");
+    } else if (timeOfDay === "evening") {
+      r(0, 0, AW, 12, "rgba(255, 110, 80, 0.14)");
+    } else if (timeOfDay === "night") {
+      // neon garage tube
+      r(18, 4, 28, 2, "#3df2ff");
+      r(18, 6, 28, 3, "rgba(61, 242, 255, 0.16)");
+    }
   }
   // floor shadow
   r(14, 66, 36, 2, "rgba(0,0,0,.35)");
@@ -212,40 +264,53 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   const deltR = 2 + sh * 0.7;
   const thigh = 4.5 + lg * 0.9;
   const topY = 24 + bob;
+  const shInt = Math.round(shW);
+  const waistInt = Math.floor(waistW);
+  const armInt = Math.max(3, Math.round(armW));
+  const forearmInt = Math.max(2, armInt - (armInt > 3 ? 1 : 0));
+  const thighInt = Math.max(4, Math.round(thigh));
 
-  /* ---------- aura ---------- */
+  /* ---------- aura & reactive PR/high-tonnage berserk surge ---------- */
   const aura = ITEM[equipped.aura];
   const tierSum = sh + ch + bk + ar + lg;
-  if ((aura && aura.color) || tierSum >= 17) {
-    const col = aura?.color || "#ffe14d", col2 = aura?.color2 || "#fff";
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * Math.PI * 2;
-      const fl = Math.sin(t / 90 + i * 1.7) * 2 + Math.sin(t / 200 + i) * 1.5;
+  const isBerserk = Boolean(cfg.berserk);
+  if ((aura && aura.color) || tierSum >= 17 || isBerserk) {
+    const col = isBerserk ? "#ff3f6c" : aura?.color || "#ffe14d";
+    const col2 = isBerserk ? "#3df2ff" : aura?.color2 || "#fff";
+    const particleCount = isBerserk ? 34 : 26;
+    for (let i = 0; i < particleCount; i++) {
+      const a = (i / particleCount) * Math.PI * 2 + (isBerserk ? t / 500 : 0);
+      const fl = Math.sin(t / (isBerserk ? 60 : 90) + i * 1.7) * 2.5 + Math.sin(t / 200 + i) * 1.5;
       const rx = 20 + fl, ry = 28 + fl;
       const x = cx + Math.cos(a) * rx;
-      const y = 40 + Math.sin(a) * ry - (aura?.id === "aura_fire" ? Math.abs(Math.sin(t / 120 + i)) * 4 : 0);
-      r(x, y, 2, 2, i % 3 ? col : col2);
+      const y = 40 + Math.sin(a) * ry - ((aura?.id === "aura_fire" || isBerserk) ? Math.abs(Math.sin(t / 100 + i)) * 5 : 0);
+      r(x, y, 2, 2, i % 3 === 0 ? "#ffe14d" : i % 2 ? col : col2);
     }
-    if (aura?.id === "aura_bolt" && Math.sin(t / 70) > 0.85) {
-      let x = cx - 18, y = 6;
-      for (let k = 0; k < 8; k++) { r(x, y, 1, 4, "#fff"); x += k % 2 ? 2 : -1; y += 4; }
+    if ((aura?.id === "aura_bolt" || isBerserk) && Math.sin(t / (isBerserk ? 45 : 70)) > (isBerserk ? 0.45 : 0.85)) {
+      const lx = isBerserk && Math.sin(t / 120) > 0 ? cx + 14 : cx - 18;
+      let x = lx, y = 6;
+      for (let k = 0; k < 8; k++) {
+        r(x, y, 1, 4, isBerserk && k % 2 ? "#3df2ff" : "#fff");
+        x += k % 2 ? 2 : -1;
+        y += 4;
+      }
     }
   }
 
   const weaponId = equipped.weapon;
   const hasHeavyWeapon =
     weaponId === "weapon_greatsword" || weaponId === "weapon_axe" || weaponId === "weapon_hammer";
-  const hasDumbbell = weaponId === "weapon_dumbbell";
-  const rightAx = cx + shW;
+  const rightAx = cx + shInt;
+  const rightFxNormal = cx + shInt - 1 + (armInt - forearmInt);
+  const rightFlexUx = cx + shInt - 1;
+  const rightFlexFx = cx + shInt + 8 - Math.max(2, armInt - 1);
   const rightForearmW = Math.max(2.5, Math.min(3.5, armW - 0.5));
   const weaponGripX =
     flex > 0 && !hasHeavyWeapon
-      ? Math.min(54, Math.round(rightAx + 9 - Math.max(1, (armW - 1) / 2)))
+      ? Math.min(54, rightFlexFx + 1)
       : hasHeavyWeapon
-      ? flex > 0
-        ? Math.min(55, Math.round(rightAx + 7.5))
-        : Math.min(55, Math.round(rightAx + 6.5))
-      : Math.min(54, Math.round(rightAx + armW * 0.5));
+      ? Math.min(55, rightAx + 7)
+      : Math.min(54, rightFxNormal + Math.floor(forearmInt / 2));
   const weaponGripY =
     hasHeavyWeapon
       ? flex > 0
@@ -255,150 +320,157 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
       ? topY - 12
       : topY + 23;
 
-  /* ---------- outline + fill passes ---------- */
+  /* ---------- outline + fill passes (strictly integer-symmetric around cx=32) ---------- */
   for (let pass = 0; pass < 2; pass++) {
     const e = pass === 0 ? 1 : 0;
     const S = pass === 0 ? OUT : SKIN;
     const shorts = pass === 0 ? OUT : "#2b2f4a";
-    // legs
+    // legs (mirrored across cx=32)
     for (const s of [-1, 1]) {
-      const lx = cx + s * (1 + thigh / 2) - thigh / 2;
-      r(lx - e, 46 + bob - e, thigh + e * 2, 9 + e * 2, shorts);
-      r(lx + 0.5 - e, 55 + bob - e, thigh - 1 + e * 2, 9 - bob + e * 2, S);
-      r(lx - 1 - e, 64 - e, thigh + 1 + e * 2, 2 + e * 2, pass ? "#e8e8e8" : OUT);
+      const lx = s < 0 ? cx - 1 - thighInt : cx + 1;
+      r(lx - e, 46 + bob - e, thighInt + e * 2, 9 + e * 2, shorts);
+      r(lx - e, 55 + bob - e, thighInt + e * 2, 9 - bob + e * 2, S);
+      r(lx - (s < 0 ? 1 : 0) - e, 64 - e, thighInt + 1 + e * 2, 2 + e * 2, pass ? "#e8e8e8" : OUT);
     }
-    // torso
+    // torso (always symmetric [cx - hw, cx + hw))
     for (let y = topY; y <= 46 + bob; y++) {
-      const f = (y - topY) / (46 + bob - topY);
-      const hw = shW + (waistW - shW) * Math.pow(f, 0.85);
-      r(cx - hw - e, y, hw * 2 + e * 2, 1, S);
+      const f = (y - topY) / Math.max(1, 46 + bob - topY);
+      const hw = Math.round(shInt + (waistInt - shInt) * Math.pow(f, 0.85));
+      r(cx - hw - e, y, (hw + e) * 2, 1, S);
     }
-    if (pass === 0) r(cx - shW - 1, topY - 1, shW * 2 + 2, 1, OUT);
+    if (pass === 0) r(cx - shInt - 1, topY - 1, (shInt + 1) * 2, 1, OUT);
     // neck + head
-    r(cx - 2.5 - e, 18 + bob, 5 + e * 2, 7, S);
+    r(cx - 2 - e, 18 + bob, 4 + e * 2, 7, S);
     r(cx - 5 - e, 7 + bob - e, 10 + e * 2, 12 + e * 2, S);
     // arms
     for (const s of [-1, 1]) {
-      const ax = cx + s * shW;
       if (s === 1 && hasHeavyWeapon) {
+        const ax = cx + shInt - 1;
         if (flex > 0) {
-          // L-shape heroic bicep curl holding raised weapon cleanly out & up!
           const upperSpan = Math.max(4, weaponGripX - ax);
           const bicepsPeakR = Math.round(armW / 2 + 0.3 + ar * 0.25);
           r(ax - e, topY + 1 - e, upperSpan + 1.5 + e * 2, armW * 0.78 + e * 2, S);
           disc(Math.round((ax + weaponGripX) / 2), topY + 1, bicepsPeakR + e, S);
           r(weaponGripX - 1.5 - e, weaponGripY - e, 3.5 + e * 2, topY + 3 - weaponGripY + e * 2, S);
         } else {
-          // Upper arm cleanly drops to elbow, then horizontal forearm extends cleanly to fist
-          const ux = ax - 1.5;
-          const uW = Math.min(armW, 4.2);
+          const ux = ax;
+          const uW = Math.min(armInt, 4);
           r(ux - e, topY + 1 - e, uW + e * 2, 9.5 + e * 2, S);
           const fStart = Math.min(ux + 1, weaponGripX - 4.5);
           const fLen = Math.max(4, weaponGripX - fStart);
           r(fStart - e, weaponGripY - 1.5 - e, fLen + e * 2, rightForearmW + e * 2, S);
         }
-        r(weaponGripX - 1.5 - e, weaponGripY - 1.5 - e, 3.5 + e * 2, 3.5 + e * 2, S); // palm base behind hilt
+        r(weaponGripX - 1.5 - e, weaponGripY - 1.5 - e, 3.5 + e * 2, 3.5 + e * 2, S);
+        r(ax - e, topY - e, armInt + e * 2, Math.max(2, Math.round(deltR)) + e * 2, S);
       } else if (flex > 0) {
-        const ux = s < 0 ? ax - 9 : ax;
-        r(ux - e, topY + 1 - e, 9 + e * 2, armW + e * 2, S); // upper arm horizontal
-        const fx = s < 0 ? ax - 9 : ax + 9 - (armW - 1);
-        r(fx - e, topY - 10 - e, armW - 1 + e * 2, 12 + e * 2, S); // forearm up
-        disc(ax + s * 5, topY + 1, Math.round(armW / 2 + 0.5 + ar * 0.3) + e, S); // biceps peak
-        r(fx - 0.5 - e, topY - 13 - e, armW + e * 2, 3 + e * 2, S); // fist
+        const ux = s < 0 ? cx - shInt - 8 : rightFlexUx;
+        r(ux - e, topY + 1 - e, 9 + e * 2, armInt + e * 2, S);
+        const fArmW = Math.max(2, armInt - 1);
+        const fx = s < 0 ? cx - shInt - 8 : rightFlexFx;
+        r(fx - e, topY - 10 - e, fArmW + e * 2, 12 + e * 2, S);
+        disc(cx + s * (shInt + 4), topY + 1, Math.round(armW / 2 + 0.5 + ar * 0.3) + e, S);
+        r(fx - e, topY - 13 - e, Math.max(3, fArmW + 1) + e * 2, 3 + e * 2, S);
+        r((s < 0 ? cx - shInt - armInt + 1 : cx + shInt - 1) - e, topY - e, armInt + e * 2, Math.max(2, Math.round(deltR)) + e * 2, S);
       } else {
-        const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5;
-        r(ux - e, topY + 1 - e, armW + e * 2, 12 + e * 2, S);
-        const fShift = s === 1 && hasDumbbell ? 0.5 : s < 0 ? 0 : 0.5;
-        r(ux + fShift - e, topY + 13 - e, armW - 0.5 + e * 2, 9 + e * 2, S);
-        r(ux + (s === 1 && hasDumbbell ? 0.5 : 0) - e, topY + 22 - e, armW + e * 2, 3 + e * 2, S);
+        const ux = s < 0 ? cx - shInt - armInt + 1 : cx + shInt - 1;
+        r(ux - e, topY + 1 - e, armInt + e * 2, 12 + e * 2, S);
+        const fx = s < 0 ? ux : ux + (armInt - forearmInt);
+        r(fx - e, topY + 13 - e, forearmInt + e * 2, 9 + e * 2, S);
+        r(fx - e, topY + 22 - e, forearmInt + e * 2, 3 + e * 2, S);
+        r(ux - e, topY - e, armInt + e * 2, Math.max(2, Math.round(deltR)) + e * 2, S);
       }
-      disc(ax + s * 0.5, topY + 1.5, Math.round(deltR) + e, S);
     }
   }
 
   /* ---------- muscle shading & definition ---------- */
-  // delts highlight
+  // delts highlight (symmetric, tucked strictly inside skin shoulder cap)
   for (const s of [-1, 1]) {
-    disc(cx + s * shW + s * 0.5 - s, topY + 0.5, Math.max(1, Math.round(deltR) - 2), HI);
+    const ux = s < 0 ? cx - shInt - armInt + 1 : cx + shInt - 1;
+    r(ux + (s < 0 ? 1 : armInt - 2), topY + 1, 1, Math.max(1, Math.round(deltR) - 1), HI);
   }
   // pecs
-  const pecW = shW - 2;
+  const pecW = shInt - 2;
   r(cx - pecW, topY + 6 + ch * 0.6, pecW * 2, 1, SHADE);
   if (ch >= 1 || p.chest) {
-    r(cx - 0.5, topY + 2, 1, 5 + ch * 0.6, SHADE);
-    r(cx - pecW + 1, topY + 2, pecW - 2, 1, p.chest ? "#ff8ba7" : HI);
-    r(cx + 1, topY + 2, pecW - 2, 1, p.chest ? "#ff8ba7" : HI);
+    r(cx - 1, topY + 2, 2, 5 + ch * 0.6, SHADE);
+    r(cx - pecW + 1, topY + 2, Math.max(1, pecW - 2), 1, p.chest ? "#ff8ba7" : HI);
+    r(cx + 1, topY + 2, Math.max(1, pecW - 2), 1, p.chest ? "#ff8ba7" : HI);
   }
   if (p.chest) {
-    // Upper pec pump striation / vascularity
     r(cx - 4, topY + 4, 3, 1, VEIN);
-    r(cx + 2, topY + 4, 3, 1, VEIN);
+    r(cx + 1, topY + 4, 3, 1, VEIN);
   }
   if (ch >= 3) { r(cx - pecW, topY + 7 + ch * 0.6, pecW * 2, 1, OUT); }
   // lats shading
-  if (bk >= 1) for (const s of [-1, 1]) r(cx + s * (shW - 1) - (s > 0 ? 1 : 0), topY + 5, 1, 6 + bk, SHADE);
+  if (bk >= 1) for (const s of [-1, 1]) r(s < 0 ? cx - shInt + 1 : cx + shInt - 2, topY + 5, 1, 6 + bk, SHADE);
   // abs
   const absTier = Math.max(cr, ch, bk, lg);
   if (absTier >= 2 || p.core) {
     const absCol = p.core ? VEIN : SHADE;
     for (let k = 0; k < 3; k++) { r(cx - 3, topY + 11 + k * 3.5, 2, 1, absCol); r(cx + 1, topY + 11 + k * 3.5, 2, 1, absCol); }
-    r(cx - 0.5, topY + 10, 1, 11, absCol);
+    r(cx - 1, topY + 10, 2, 11, absCol);
   }
   // arms definition / vascularity
   for (const s of [-1, 1]) {
-    const ax = cx + s * shW;
+    const ux = s < 0 ? cx - shInt - armInt + 1 : cx + shInt - 1;
     if (s === 1 && hasHeavyWeapon) {
       if (flex > 0) {
-        if (ar >= 1 || p.arms) r(ax + 2, topY, 3, 1, p.arms ? "#ff8ba7" : HI);
-        if (ar >= 3 || p.arms) r(weaponGripX - 0.5, weaponGripY + 4, 1, 2, VEIN);
+        if (ar >= 1 || p.arms) r(ux + 2, topY, 3, 1, p.arms ? "#ff8ba7" : HI);
+        if (ar >= 3 || p.arms) r(weaponGripX - 1, weaponGripY + 4, 1, 2, VEIN);
       } else {
-        if (ar >= 1 || p.arms) r(ax, topY + 3, 1, 5, p.arms ? "#ff8ba7" : HI);
-        if (ar >= 3 || p.arms) r(weaponGripX - 6, weaponGripY - 0.5, 2, 1, VEIN);
+        if (ar >= 1 || p.arms) r(ux + 1, topY + 3, 1, 5, p.arms ? "#ff8ba7" : HI);
+        if (ar >= 3 || p.arms) r(weaponGripX - 6, weaponGripY - 1, 2, 1, VEIN);
       }
     } else if (flex > 0) {
-      if (ar >= 1 || p.arms) r(ax + s * 3, topY + 1, 3, 1, p.arms ? "#ff8ba7" : HI);
-      if (ar >= 3 || p.arms) { r(ax + s * 6, topY + 3, 1, 1, VEIN); r(ax + s * 5, topY + 4, 2, 1, VEIN); }
+      if (ar >= 1 || p.arms) r(cx + s * (shInt + 2), topY + 1, 3, 1, p.arms ? "#ff8ba7" : HI);
+      if (ar >= 3 || p.arms) { r(cx + s * (shInt + 5), topY + 3, 1, 1, VEIN); r(cx + s * (shInt + 4), topY + 4, 2, 1, VEIN); }
     } else {
-      const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5;
-      if (ar >= 1 || p.arms) r(ux + (s < 0 ? 1 : armW - 2), topY + 4, 1, 6, p.arms ? "#ff8ba7" : HI);
-      r(ux, topY + 12, armW, 1, SHADE);
-      if (ar >= 3 || p.arms) { r(ux + armW / 2, topY + 14, 1, 4, VEIN); r(ux + armW / 2 - 1, topY + 17, 1, 3, VEIN); }
+      const fx = s < 0 ? ux : ux + (armInt - forearmInt);
+      if (ar >= 1 || p.arms) r(ux + (s < 0 ? 1 : armInt - 2), topY + 4, 1, 6, p.arms ? "#ff8ba7" : HI);
+      r(ux, topY + 12, armInt, 1, SHADE);
+      if (ar >= 3 || p.arms) { r(fx + Math.floor(forearmInt / 2), topY + 14, 1, 4, VEIN); r(fx, topY + 17, 1, 3, VEIN); }
     }
   }
   // quads
-  if (lg >= 2) for (const s of [-1, 1]) { const lx = cx + s * (1 + thigh / 2); r(lx, 56 + bob, 1, 4, SHADE); }
+  if (lg >= 2) for (const s of [-1, 1]) { const lx = s < 0 ? cx - 1 - thighInt : cx + 1; r(lx + Math.floor(thighInt / 2), 56 + bob, 1, 4, SHADE); }
 
   /* ---------- equipment ---------- */
   const shirt = ITEM[equipped.shirt];
   if (shirt?.color) {
     const strap = shirt.id === "shirt_stringer" ? 1 : shirt.id === "shirt_comp" ? 99 : 2;
+    const inset = strap === 99 ? 0 : strap === 1 ? 3 : 2;
     for (let y = topY + (strap === 99 ? 0 : 4); y <= 46 + bob; y++) {
-      const f = (y - topY) / (46 + bob - topY);
-      const hw = (shW + (waistW - shW) * Math.pow(f, 0.85)) - (strap === 99 ? 0 : strap === 1 ? 2.5 : 1.5);
+      const f = (y - topY) / Math.max(1, 46 + bob - topY);
+      const hw = Math.max(2, Math.round(shInt + (waistInt - shInt) * Math.pow(f, 0.85)) - inset);
       r(cx - hw, y, hw * 2, 1, shirt.color);
     }
-    if (strap !== 99) for (const s of [-1, 1]) r(cx + s * (shW - 4) - (s > 0 ? strap : 0), topY, strap, 4, shirt.color);
+    if (strap !== 99) {
+      const topShirtHw = Math.max(4, shInt - inset);
+      const strapDist = Math.min(Math.max(4, Math.round(topShirtHw * 0.6)), Math.max(4, topShirtHw));
+      r(cx - strapDist, topY, strap, 4, shirt.color);
+      r(cx + strapDist - strap, topY, strap, 4, shirt.color);
+    }
     if (shirt.color2) { r(cx - 3, topY + 8, 6, 1, shirt.color2); r(cx - 1, topY + 7, 2, 3, shirt.color2); }
     if (strap === 99) r(cx - pecW, topY + 6 + ch * 0.6, pecW * 2, 1, "rgba(0,0,0,.35)");
   }
   const belt = ITEM[equipped.belt];
-  if (belt?.color) { r(cx - waistW - 0.5, 43 + bob, waistW * 2 + 1, 3, belt.color); r(cx - 1.5, 43 + bob, 3, 3, belt.color2!); }
+  if (belt?.color) { r(cx - waistInt - 1, 43 + bob, (waistInt + 1) * 2, 3, belt.color); r(cx - 2, 43 + bob, 4, 3, belt.color2!); }
   const wrist = ITEM[equipped.wrist];
   if (wrist?.color) for (const s of [-1, 1]) {
-    const ax = cx + s * shW;
     if (s === 1 && hasHeavyWeapon) {
       if (flex > 0) {
         r(weaponGripX - 1.5, weaponGripY + 2, 3.5, 2, wrist.color);
       } else {
-        // Vertical wristband cleanly sitting on horizontal outstretched forearm just left of fist
         r(weaponGripX - 3.5, weaponGripY - 1.5, 2, rightForearmW, wrist.color);
       }
     } else if (flex > 0) {
-      const fx = s < 0 ? ax - 9 : ax + 9 - (armW - 1);
-      r(fx - 0.5, topY - 10, armW, 2, wrist.color);
+      const fArmW = Math.max(2, armInt - 1);
+      const fx = s < 0 ? cx - shInt - 8 : rightFlexFx;
+      r(fx, topY - 10, fArmW, 2, wrist.color);
     } else {
-      const ux = s < 0 ? ax - armW + 0.5 : ax - 0.5;
-      r(ux + (s === 1 && hasDumbbell ? 0.5 : 0), topY + 20, armW, 2, wrist.color);
+      const ux = s < 0 ? cx - shInt - armInt + 1 : cx + shInt - 1;
+      const fx = s < 0 ? ux : ux + (armInt - forearmInt);
+      r(fx, topY + 20, forearmInt, 2, wrist.color);
     }
   }
 

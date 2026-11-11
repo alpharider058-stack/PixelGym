@@ -177,13 +177,26 @@ function rollbackDoneSets(s: State, targetExercises: ExEntry[], nextActive: Acti
 
   const { best, lastSet } = recomputeBestAndLast(touchedExIds, s.history, nextActive, bw, s.best, s.lastSet);
 
+  let nextPending = s.pendingBossDmg || 0;
+  let nextDealt = s.bossDmgDealt || 0;
+  if (bossSub > 0) {
+    if (nextPending >= bossSub) {
+      nextPending -= bossSub;
+    } else {
+      const rem = bossSub - nextPending;
+      nextPending = 0;
+      nextDealt = Math.max(0, nextDealt - rem);
+    }
+  }
+
   return {
     exp: Math.max(0, s.exp - expSub),
     weeklyExp: Math.max(0, s.weeklyExp - weeklyExpSub),
     gold: Math.max(0, s.gold - goldSub),
     tonnage: Math.max(0, s.tonnage - volSub),
     totalPrs: Math.max(0, (s.totalPrs || 0) - prsSub),
-    bossDmgDealt: Math.max(0, (s.bossDmgDealt || 0) - bossSub),
+    pendingBossDmg: nextPending,
+    bossDmgDealt: nextDealt,
     muscleVol: mv,
     quests: nextQuests,
     best,
@@ -205,7 +218,9 @@ interface State {
   pumpUntil: Record<Muscle, number>;
   quests: Quest[];
   bossDmgDealt: number;
+  pendingBossDmg: number;
   bossDefeated: boolean;
+  berserkUntil: number;
   restTimeByEx: Record<string, number>;
   best: Record<string, { e1rm: number; vol: number }>;
   lastSet: Record<string, { kg: number; reps: number }>;
@@ -240,6 +255,7 @@ interface State {
   clearWorkoutSummary: () => void;
   claimAchievement: (id: string) => number;
   setActiveTitle: (title: string | null) => void;
+  unleashBossAttack: () => number;
   claimBossVictory: (gold: number, exp: number) => boolean;
   setRestTimeForEx: (exId: string, sec: number) => void;
   reorderActiveExercises: (fromIndex: number, toIndex: number) => void;
@@ -277,7 +293,9 @@ export const useGame = create<State>()(
       pumpUntil: zeroVol(),
       quests: generateDefaultQuests(),
       bossDmgDealt: 0,
+      pendingBossDmg: 0,
       bossDefeated: false,
+      berserkUntil: 0,
       restTimeByEx: {},
       best: {}, lastSet: {}, history: [], active: null, restEndsAt: null, restExName: null,
       owned: Object.values(DEFAULT_EQUIP).concat(["shirt_none", "belt_none", "wrist_none", "aura_none"]),
@@ -357,6 +375,16 @@ export const useGame = create<State>()(
         return def.rewardGold;
       },
       setActiveTitle: (title) => set({ activeTitle: title }),
+      unleashBossAttack: () => {
+        const s = get();
+        const dmg = s.pendingBossDmg || 0;
+        if (dmg <= 0) return 0;
+        set({
+          bossDmgDealt: (s.bossDmgDealt || 0) + dmg,
+          pendingBossDmg: 0,
+        });
+        return dmg;
+      },
       claimBossVictory: (gold, exp) => {
         const s = get();
         if (s.bossDefeated) return false;
@@ -419,7 +447,9 @@ export const useGame = create<State>()(
             restTimeByEx: d.restTimeByEx ?? cur.restTimeByEx,
             quests: Array.isArray(d.quests) ? d.quests : cur.quests,
             bossDmgDealt: typeof d.bossDmgDealt === "number" ? d.bossDmgDealt : cur.bossDmgDealt,
+            pendingBossDmg: typeof d.pendingBossDmg === "number" ? d.pendingBossDmg : cur.pendingBossDmg,
             bossDefeated: typeof d.bossDefeated === "boolean" ? d.bossDefeated : cur.bossDefeated,
+            berserkUntil: typeof d.berserkUntil === "number" ? d.berserkUntil : cur.berserkUntil,
             history: hist,
             trophies: Array.isArray(d.trophies) ? d.trophies : cur.trophies,
             customRoutines: Array.isArray(d.customRoutines) ? d.customRoutines : cur.customRoutines,
@@ -592,13 +622,26 @@ export const useGame = create<State>()(
           const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
           if (mKey) mv[mKey] = Math.max(0, (mv[mKey] ?? 0) - sVol);
 
+          let nextPending = s.pendingBossDmg || 0;
+          let nextDealt = s.bossDmgDealt || 0;
+          if (sameWeek && bossSub > 0) {
+            if (nextPending >= bossSub) {
+              nextPending -= bossSub;
+            } else {
+              const rem = bossSub - nextPending;
+              nextPending = 0;
+              nextDealt = Math.max(0, nextDealt - rem);
+            }
+          }
+
           set({
             exp: Math.max(0, s.exp - expSub),
             gold: Math.max(0, s.gold - goldSub),
             tonnage: Math.max(0, s.tonnage - sVol),
             totalPrs: Math.max(0, (s.totalPrs || 0) - (wasPr ? 1 : 0)),
             weeklyExp: sameWeek ? Math.max(0, s.weeklyExp - expSub) : s.weeklyExp,
-            bossDmgDealt: sameWeek ? Math.max(0, (s.bossDmgDealt || 0) - bossSub) : s.bossDmgDealt,
+            pendingBossDmg: nextPending,
+            bossDmgDealt: nextDealt,
             muscleVol: mv,
             quests: nextQuests,
             best: newBest,
@@ -645,7 +688,8 @@ export const useGame = create<State>()(
         const newPump = { ...zeroVol(), ...(s.pumpUntil || {}), [muscleKey]: Date.now() + 2 * 3600 * 1000 };
         const { bossDmgPct } = getCombatBonus(s.equipped);
         const bossHitDmg = Math.round(vol * (1 + bossDmgPct / 100));
-        const newBossDmg = (s.bossDmgDealt || 0) + bossHitDmg;
+        const newPendingBossDmg = (s.pendingBossDmg || 0) + bossHitDmg;
+        const nextBerserkUntil = pr ? Date.now() + 10 * 60 * 1000 : (s.berserkUntil || 0);
         const mv = { ...zeroVol(), ...(s.muscleVol || {}) };
         mv[muscleKey] = Math.max(0, (mv[muscleKey] ?? 0) + vol);
 
@@ -672,7 +716,8 @@ export const useGame = create<State>()(
           muscleVol: mv,
           pumpUntil: newPump,
           quests: updatedQuests,
-          bossDmgDealt: newBossDmg,
+          pendingBossDmg: newPendingBossDmg,
+          berserkUntil: nextBerserkUntil,
           best: shouldUpdateBest
             ? { ...s.best, [entry.exId]: { e1rm: Math.max(est, prev?.e1rm ?? 0), vol: Math.max(vol, prev?.vol ?? 0) } }
             : s.best,
@@ -796,11 +841,14 @@ export const useGame = create<State>()(
           topExercises: topExercises.slice(0, 4),
         };
 
+        const highTonnageBerserk = tonnage >= 1500 || prs > 0 ? now + 15 * 60 * 1000 : (s.berserkUntil || 0);
+
         set({
           history: nextHistory,
           active: null, restEndsAt: null, restExName: null, streak, maxStreak: nextMaxStreak, lastDay: today,
           exp: s.exp + bonus, weeklyExp: s.weeklyExp + bonus, gold: s.gold + bonusGold,
           quests: updatedQuests,
+          berserkUntil: Math.max(s.berserkUntil || 0, highTonnageBerserk),
           lastWorkoutSummary: summary,
         });
         return log;
@@ -883,6 +931,18 @@ export const useGame = create<State>()(
           }
         }
 
+        let nextPending = s.pendingBossDmg || 0;
+        let nextDealt = s.bossDmgDealt || 0;
+        if (sameWeekAsCurrent && sameWeekBossSub > 0) {
+          if (nextPending >= sameWeekBossSub) {
+            nextPending -= sameWeekBossSub;
+          } else {
+            const rem = sameWeekBossSub - nextPending;
+            nextPending = 0;
+            nextDealt = Math.max(0, nextDealt - rem);
+          }
+        }
+
         return {
           history: newHistory,
           tonnage: Math.max(0, s.tonnage - log.tonnage),
@@ -890,7 +950,8 @@ export const useGame = create<State>()(
           weeklyExp: sameWeekAsCurrent ? Math.max(0, s.weeklyExp - sameWeekExpSub) : s.weeklyExp,
           gold: Math.max(0, s.gold - workoutGold),
           totalPrs: Math.max(0, (s.totalPrs || 0) - (log.prs || 0)),
-          bossDmgDealt: sameWeekAsCurrent ? Math.max(0, (s.bossDmgDealt || 0) - sameWeekBossSub) : s.bossDmgDealt,
+          pendingBossDmg: nextPending,
+          bossDmgDealt: nextDealt,
           muscleVol: mv,
           best: newBest,
           lastSet: newLastSet,
@@ -935,6 +996,7 @@ export const useGame = create<State>()(
             weekKey: currentW,
             quests: generateDefaultQuests(),
             bossDmgDealt: 0,
+            pendingBossDmg: 0,
             bossDefeated: false,
           });
           return null;
@@ -956,6 +1018,7 @@ export const useGame = create<State>()(
           weekKey: currentW,
           quests: generateDefaultQuests(),
           bossDmgDealt: 0,
+          pendingBossDmg: 0,
           bossDefeated: false,
         });
         return trophy;
@@ -991,6 +1054,8 @@ export const useGame = create<State>()(
         );
         state.muscleVol = { ...zeroVol(), ...(state.muscleVol || {}) };
         state.pumpUntil = { ...zeroVol(), ...(state.pumpUntil || {}) };
+        state.pendingBossDmg = typeof state.pendingBossDmg === "number" ? state.pendingBossDmg : 0;
+        state.berserkUntil = typeof state.berserkUntil === "number" ? state.berserkUntil : 0;
         state.pushPrefs = { ...DEFAULT_PUSH_PREFS, ...(state.pushPrefs || {}) };
         state.history = Array.isArray(state.history) ? state.history : [];
         state.best = state.best && typeof state.best === "object" ? state.best : {};
