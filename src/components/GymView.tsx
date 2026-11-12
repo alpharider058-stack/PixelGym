@@ -17,6 +17,7 @@ import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
 import { BossEmblemCanvas } from "./PixelPreviews";
 import ExerciseAnimationCanvas from "./ExerciseAnimationCanvas";
 import ExerciseGuideModal from "./ExerciseGuideModal";
+import { getExerciseGuide } from "@/lib/exerciseAnimations";
 
 const EMPTY_IDS: string[] = [];
 const EMPTY_ROUTINES: Routine[] = [];
@@ -1153,6 +1154,10 @@ const ExerciseCard = memo(function ExerciseCard({
     () => entry ? getSetOverloadAdvice(history, entry.exId, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps) : null,
     [history, entry, pendingSetIndex, currentTargetSet?.kg, currentTargetSet?.reps]
   );
+  const animGuide = useMemo(
+    () => entry ? getExerciseGuide(entry.exId, EX[entry.exId]?.name) : null,
+    [entry]
+  );
 
   if (!entry) return null;
   const ex = EX[entry.exId];
@@ -1180,11 +1185,11 @@ const ExerciseCard = memo(function ExerciseCard({
       <Panel className={`p-3 transition-shadow ${allDone ? "ring-2 ring-[#3a7a30]/80" : ""}`}>
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="flex items-start gap-2.5 min-w-0 flex-1">
-            {/* Live Pixel-Art Exercise Technique Preview Thumbnail */}
+            {/* Live 16-bit Pixel-Art Arcade Monitor Preview (80x64) */}
             <motion.button
               type="button"
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
               transition={APPLE_TAP}
               onClick={() => {
                 sfx.tap();
@@ -1192,17 +1197,18 @@ const ExerciseCard = memo(function ExerciseCard({
                 setGuideOpen(true);
               }}
               aria-label={`Ver animación y técnica de ${ex?.name ?? entry.exId}`}
-              title="Toca para ver la guía de técnica"
-              className="relative shrink-0 overflow-hidden border-2 border-[var(--cyan)]/80 bg-[#090c16] p-0.5 shadow-[2px_2px_0_#000] active:border-[var(--gold)]"
+              title="Toca para ampliar guía de técnica 16-bit"
+              className="relative shrink-0 overflow-hidden border-2 border-[var(--cyan)]/85 bg-[#080b14] p-0.5 shadow-[0_0_10px_rgba(61,242,255,0.18),2px_2px_0_#000] active:border-[var(--gold)]"
             >
               <ExerciseAnimationCanvas
                 exId={entry.exId}
                 exName={ex?.name}
-                size={42}
+                width={80}
+                height={64}
                 paused={collapsed}
               />
-              <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 border border-black bg-[var(--cyan)] px-1 text-[6px] font-bold leading-tight text-black pixel-title">
-                ?
+              <span className="pointer-events-none absolute bottom-0.5 right-0.5 border border-black bg-[var(--cyan)]/90 px-1 text-[5.5px] font-bold leading-tight text-black pixel-title">
+                GUÍA
               </span>
             </motion.button>
 
@@ -1216,19 +1222,31 @@ const ExerciseCard = memo(function ExerciseCard({
                 <span className="pixel-title text-[8px] text-[#8b93b8] group-active:text-white shrink-0">
                   {collapsed ? "▶" : "▼"}
                 </span>
-                <span className="mono text-lg leading-tight truncate">{ex?.name ?? entry.exId}</span>
+                <span className="mono text-base sm:text-lg leading-tight truncate font-bold text-white">
+                  {ex?.name ?? entry.exId}
+                </span>
                 {allDone && (
-                  <span className="pixel-title shrink-0 border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[6.5px] text-[#7dff6a]">
+                  <span className="pixel-title shrink-0 border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[6px] text-[#7dff6a]">
                     ✓ HECHO
                   </span>
                 )}
               </div>
-              <div className="pixel-title text-[7.5px] sm:text-[8px] text-[#8b93b8] mt-0.5 truncate">
+              <div className="pixel-title text-[7px] text-[#8b93b8] mt-1 truncate">
                 {ex && MUSCLE_LABEL[ex.muscle]}
                 {` · ${doneCount}/${setCount}`}
                 {isBw ? ` · LASTRE` : ""}
                 {best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}
               </div>
+              {animGuide && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="pixel-title border border-[#2c3350] bg-[#0f1628] px-1.5 py-0.5 text-[6px] text-[#7dff6a]">
+                    {animGuide.equipLabel}
+                  </span>
+                  <span className="mono text-[10px] text-[#94a3b8] truncate max-w-[130px]">
+                    {animGuide.targetLabel.split("·")[0].trim()}
+                  </span>
+                </div>
+              )}
             </button>
           </div>
           <div className="flex items-center gap-1 shrink-0">

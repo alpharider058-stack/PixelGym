@@ -1,25 +1,35 @@
 "use client";
 import React, { useEffect, useMemo, useRef } from "react";
-import { ANH, ANW, drawExerciseFrame, getExerciseGuide } from "@/lib/exerciseAnimations";
+import { ANH, ANW, drawExerciseFrame, getExerciseGuide, repCycle, RepPhase } from "@/lib/exerciseAnimations";
 
 interface Props {
   exId: string;
   exName?: string;
-  size?: number;
+  /** Integer scale multiplier of 80x64 (1 -> 80x64, 2 -> 160x128, 3 -> 240x192). Overrides width/height if provided. */
+  scale?: number;
+  width?: number;
+  height?: number;
   speed?: number;
   paused?: boolean;
+  /** Monotonic millisecond offset applied for manual frame stepping (-350ms / +350ms). */
+  stepOffsetMs?: number;
   showMuscleGlow?: boolean;
+  onPhaseChange?: (phase: RepPhase) => void;
   className?: string;
 }
 
-/** Crisp 48x48 pixel-art animated exercise demonstration. Pauses offscreen automatically. */
+/** Crisp 80x64 (5:4) 16-bit pixel-art exercise animation monitor. Pauses offscreen automatically. */
 export default function ExerciseAnimationCanvas({
   exId,
   exName,
-  size = 44,
+  scale,
+  width = ANW,
+  height = ANH,
   speed = 1,
   paused = false,
+  stepOffsetMs = 0,
   showMuscleGlow = true,
+  onPhaseChange,
   className = "",
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,13 +38,21 @@ export default function ExerciseAnimationCanvas({
   const guideRef = useRef(guide);
   const speedRef = useRef(speed);
   const pausedRef = useRef(paused);
+  const stepRef = useRef(stepOffsetMs);
   const glowRef = useRef(showMuscleGlow);
+  const phaseCbRef = useRef(onPhaseChange);
+  const lastReportedPhase = useRef<RepPhase | null>(null);
   const elapsedRef = useRef(0);
 
   guideRef.current = guide;
   speedRef.current = speed;
   pausedRef.current = paused;
+  stepRef.current = stepOffsetMs;
   glowRef.current = showMuscleGlow;
+  phaseCbRef.current = onPhaseChange;
+
+  const displayW = scale !== undefined ? Math.round(ANW * scale) : width;
+  const displayH = scale !== undefined ? Math.round(ANH * scale) : height;
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -47,6 +65,20 @@ export default function ExerciseAnimationCanvas({
     let visible = true;
     let lastNow = performance.now();
 
+    const renderOnce = (tMs: number) => {
+      drawExerciseFrame(ctx, guideRef.current, tMs, {
+        speed: 1,
+        showMuscleGlow: glowRef.current,
+      });
+      if (phaseCbRef.current) {
+        const nextPhase = repCycle(tMs, 1).phase;
+        if (nextPhase !== lastReportedPhase.current) {
+          lastReportedPhase.current = nextPhase;
+          phaseCbRef.current(nextPhase);
+        }
+      }
+    };
+
     const paint = (now: number) => {
       raf = 0;
       const dt = Math.min(80, Math.max(0, now - lastNow));
@@ -54,10 +86,7 @@ export default function ExerciseAnimationCanvas({
       if (!pausedRef.current) {
         elapsedRef.current += dt * speedRef.current;
       }
-      drawExerciseFrame(ctx, guideRef.current, elapsedRef.current, {
-        speed: 1,
-        showMuscleGlow: glowRef.current,
-      });
+      renderOnce(elapsedRef.current + stepRef.current);
       if (visible && !document.hidden && !pausedRef.current) {
         raf = requestAnimationFrame(paint);
       }
@@ -81,11 +110,7 @@ export default function ExerciseAnimationCanvas({
     };
     document.addEventListener("visibilitychange", onVis);
 
-    // Draw first frame immediately even if paused
-    drawExerciseFrame(ctx, guideRef.current, elapsedRef.current, {
-      speed: 1,
-      showMuscleGlow: glowRef.current,
-    });
+    renderOnce(elapsedRef.current + stepRef.current);
     if (!paused) kick();
 
     return () => {
@@ -93,7 +118,7 @@ export default function ExerciseAnimationCanvas({
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [paused, guide]);
+  }, [paused, guide, stepOffsetMs]);
 
   return (
     <canvas
@@ -101,7 +126,7 @@ export default function ExerciseAnimationCanvas({
       width={ANW}
       height={ANH}
       className={`pixelated block shrink-0 ${className}`}
-      style={{ width: size, height: size }}
+      style={{ width: displayW, height: displayH }}
       aria-label={`Animación pixel-art: ${exName ?? exId}`}
     />
   );
