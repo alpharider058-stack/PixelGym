@@ -15,6 +15,8 @@ import PlateCalculator from "./PlateCalculator";
 import RaidBossView from "./RaidBoss";
 import { PIXEL_ROUTINE_ICONS, PixelArtIcon } from "./PixelIcon";
 import { BossEmblemCanvas } from "./PixelPreviews";
+import ExerciseAnimationCanvas from "./ExerciseAnimationCanvas";
+import ExerciseGuideModal from "./ExerciseGuideModal";
 
 const EMPTY_IDS: string[] = [];
 const EMPTY_ROUTINES: Routine[] = [];
@@ -1140,6 +1142,7 @@ const ExerciseCard = memo(function ExerciseCard({
   const restTimeByEx = useGame((s) => s.restTimeByEx ?? EMPTY_REST_MAP);
   const setRestTimeForEx = useGame((s) => s.setRestTimeForEx);
   const [calcKg, setCalcKg] = useState<number | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const entrySets = Array.isArray(entry?.sets) ? entry.sets : EMPTY_SETS;
   const firstPending = entrySets.findIndex((s) => !s.done);
@@ -1176,30 +1179,58 @@ const ExerciseCard = memo(function ExerciseCard({
     <motion.div layout="position" transition={SPRING} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <Panel className={`p-3 transition-shadow ${allDone ? "ring-2 ring-[#3a7a30]/80" : ""}`}>
         <div className="mb-2 flex items-start justify-between gap-2">
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="min-w-0 flex-1 text-left cursor-pointer group"
-            aria-expanded={!collapsed}
-          >
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="pixel-title text-[8px] text-[#8b93b8] group-active:text-white shrink-0">
-                {collapsed ? "▶" : "▼"}
+          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+            {/* Live Pixel-Art Exercise Technique Preview Thumbnail */}
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.92 }}
+              transition={APPLE_TAP}
+              onClick={() => {
+                sfx.tap();
+                haptic(6);
+                setGuideOpen(true);
+              }}
+              aria-label={`Ver animación y técnica de ${ex?.name ?? entry.exId}`}
+              title="Toca para ver la guía de técnica"
+              className="relative shrink-0 overflow-hidden border-2 border-[var(--cyan)]/80 bg-[#090c16] p-0.5 shadow-[2px_2px_0_#000] active:border-[var(--gold)]"
+            >
+              <ExerciseAnimationCanvas
+                exId={entry.exId}
+                exName={ex?.name}
+                size={42}
+                paused={collapsed}
+              />
+              <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 border border-black bg-[var(--cyan)] px-1 text-[6px] font-bold leading-tight text-black pixel-title">
+                ?
               </span>
-              <span className="mono text-lg leading-tight truncate">{ex?.name ?? entry.exId}</span>
-              {allDone && (
-                <span className="pixel-title shrink-0 border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[6.5px] text-[#7dff6a]">
-                  ✓ HECHO
+            </motion.button>
+
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="min-w-0 flex-1 text-left cursor-pointer group pt-0.5"
+              aria-expanded={!collapsed}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="pixel-title text-[8px] text-[#8b93b8] group-active:text-white shrink-0">
+                  {collapsed ? "▶" : "▼"}
                 </span>
-              )}
-            </div>
-            <div className="pixel-title text-[8px] text-[#8b93b8] mt-0.5 truncate">
-              {ex && MUSCLE_LABEL[ex.muscle]}
-              {` · ${doneCount}/${setCount}`}
-              {isBw ? ` · +LASTRE` : ""}
-              {best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}
-            </div>
-          </button>
+                <span className="mono text-lg leading-tight truncate">{ex?.name ?? entry.exId}</span>
+                {allDone && (
+                  <span className="pixel-title shrink-0 border border-[#3a7a30] bg-[#15291a] px-1.5 py-0.5 text-[6.5px] text-[#7dff6a]">
+                    ✓ HECHO
+                  </span>
+                )}
+              </div>
+              <div className="pixel-title text-[7.5px] sm:text-[8px] text-[#8b93b8] mt-0.5 truncate">
+                {ex && MUSCLE_LABEL[ex.muscle]}
+                {` · ${doneCount}/${setCount}`}
+                {isBw ? ` · LASTRE` : ""}
+                {best ? ` · 1RM ${best.e1rm.toFixed(1)}kg` : ""}
+              </div>
+            </button>
+          </div>
           <div className="flex items-center gap-1 shrink-0">
             <motion.button
               type="button"
@@ -1258,8 +1289,8 @@ const ExerciseCard = memo(function ExerciseCard({
           </button>
         ) : (
           <>
-            {/* Toolbar: Custom Rest time & Plate Calculator */}
-            <div className="mb-2.5 flex items-center justify-between border-y border-[#2c3350] py-1.5 text-[8px]">
+            {/* Toolbar: Custom Rest time, Technique Guide & Plate Calculator */}
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-1.5 border-y border-[#2c3350] py-1.5 text-[8px]">
               <motion.button
                 type="button"
                 whileHover={{ scale: 1.04 }}
@@ -1283,6 +1314,20 @@ const ExerciseCard = memo(function ExerciseCard({
                     ▲ PLEGAR
                   </motion.button>
                 )}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.04, y: -1 }}
+                  whileTap={{ scale: 0.92, y: 1 }}
+                  transition={APPLE_TAP}
+                  onClick={() => {
+                    sfx.tap();
+                    haptic(6);
+                    setGuideOpen(true);
+                  }}
+                  className="pixel-title flex items-center gap-1 border border-[var(--cyan)] bg-[#0b1f29] px-2 py-1 text-[var(--cyan)] shadow-[1px_1px_0_#000]"
+                >
+                  <span>💡 TÉCNICA</span>
+                </motion.button>
                 <motion.button
                   type="button"
                   whileHover={{ scale: 1.04, y: -1 }}
@@ -1346,6 +1391,12 @@ const ExerciseCard = memo(function ExerciseCard({
             )}
           </>
         )}
+
+        <AnimatePresence>
+          {guideOpen && (
+            <ExerciseGuideModal exId={entry.exId} onClose={() => setGuideOpen(false)} />
+          )}
+        </AnimatePresence>
       </Panel>
     </motion.div>
   );
