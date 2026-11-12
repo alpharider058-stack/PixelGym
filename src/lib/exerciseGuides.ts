@@ -146,7 +146,8 @@ export function detectEquip(raw: string, isBw: boolean): EquipKind {
 
 export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnimSpec {
   const ex = EX[exId];
-  const raw = norm(`${exId} ${exName ?? ex?.name ?? ""} ${ex?.sub ?? ""}`);
+  // Separate fields with ` | ` so adjacent words across fields never form false tokens (e.g. "barra | trapecio" != "barra t")
+  const raw = norm(`${exId} | ${exName ?? ex?.name ?? ""} | ${ex?.sub ?? ""}`);
   const isBw = Boolean(ex?.bw);
   const equip = detectEquip(raw, isBw);
   const equipLabel = EQUIP_BADGE[equip];
@@ -260,7 +261,14 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
   }
 
   /* ---------- CHEST (PECHO) ---------- */
-  if (raw.includes("contractora") || raw.includes("pec deck") || raw.includes("pec_deck")) {
+  if (raw.includes("contractora inversa") || raw.includes("contractora_inversa")) {
+    return make("reverse_pec_deck", "Deltoides Posterior en Máquina", "Romboides, Trapecio Medio", "1s apertura atrás · 2–3s retorno", "Exhala al abrir brazos atrás, inhala al volver", [
+      "Regula los agarres al nivel exacto de los hombros con pecho en el cojín.",
+      "Lleva los brazos atrás en arco amplio evitando juntar demasiado escápulas al inicio.",
+      "Controla la vuelta sin dejar caer las placas.",
+    ], ["Encoger el cuello tirando con trapecio superior.", "Doblar los codos convirtiéndolo en un remo."], undefined, "machine");
+  }
+  if ((raw.includes("contractora") || raw.includes("pec deck") || raw.includes("pec_deck")) || (raw.includes("aperturas") && equip === "machine")) {
     return make("pec_deck", "Pectoral Mayor (Aislamiento en Máquina)", "Deltoides Anterior", "1s cierre · 1s apriete · 3s apertura", "Inhala al abrir brazos, exhala al juntar al centro", [
       "Ajusta el asiento para que los brazos queden a la altura del pecho medio.",
       "Mantén el pecho erguido y escápulas apoyadas contra el respaldo.",
@@ -304,7 +312,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Sube abrazando un arco imaginario con control.",
     ], ["Bajar demasiado profundo estresando el tendón del hombro.", "Doblar codos a 90° como un press."], v, equip);
   }
-  if (raw.includes("landmine") && !raw.includes("hombro")) {
+  if (raw.includes("landmine")) {
     return make("landmine_press", "Pectoral Superior · Hombro Seguro", "Tríceps, Serrato", "1s empuje diagonal · 2s bajada", "Exhala al empujar arriba-alante", [
       "Sostén el extremo de la barra frente al pecho con torso ligeramente inclinado.",
       "Empuja en arco diagonal hacia arriba extendiendo el brazo con firmeza.",
@@ -352,13 +360,6 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
   }
 
   /* ---------- SHOULDERS (HOMBROS) ---------- */
-  if (raw.includes("contractora inversa") || raw.includes("contractora_inversa")) {
-    return make("reverse_pec_deck", "Deltoides Posterior en Máquina", "Romboides, Trapecio Medio", "1s apertura atrás · 2–3s retorno", "Exhala al abrir brazos atrás, inhala al volver", [
-      "Regula los agarres al nivel exacto de los hombros con pecho en el cojín.",
-      "Lleva los brazos atrás en arco amplio evitando juntar demasiado escápulas al inicio.",
-      "Controla la vuelta sin dejar caer las placas.",
-    ], ["Encoger el cuello tirando con trapecio superior.", "Doblar los codos convirtiéndolo en un remo."], undefined, "machine");
-  }
   if (raw.includes("face pull") || raw.includes("facepull") || raw.includes("cruce inverso") || raw.includes("rotacion") || raw.includes("cuban")) {
     return make("facepull", "Deltoides Posterior · Manguito Rotador", "Trapecio Medio, Romboides", "1s tirón · 1s apriete · 2s retorno", "Exhala al abrir la cuerda a la frente", [
       "Coloca la polea a la altura de la cara y separa la cuerda hacia las orejas.",
@@ -392,7 +393,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Lleva los brazos en el plano escapular (~30° al frente) liderando con codos.",
       "Sube hasta formar una T con los hombros sin levantar el cuello.",
       "Baja en 2–3 segundos manteniendo tensión lateral antes de tocar cuerpo.",
-    ], ["Balancear el torso al inicio de cada rep.", "Doblar codos más de 90° subiendo manos primero."]);
+    ], ["Balancear el torso al inicio de cada rep.", "Doblar codos más de 90° subiendo manos primero."], undefined, exId === "lateral" ? "dumbbell" : equip);
   }
   if (raw.includes("flexiones en pino") || raw.includes("press pike")) {
     return make("handstand_pushup", "Deltoides Anterior · Tríceps · Core", "Trapecio, Serrato", "2s descenso controlado · 1s empuje", "Inhala al bajar coronilla, exhala al empujar", [
@@ -459,6 +460,13 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Estira dorsales completamente arriba con control.",
     ], ["Echarte completamente atrás como si fuera un remo.", "Llevar la barra detrás de la nuca forzando cuello."], undefined, equip === "band" ? "band" : "cable");
   }
+  if (raw.includes("remo al menton") || raw.includes("snatch grip high pull")) {
+    return make("upright_row", "Deltoides Lateral · Trapecio", "Bíceps, Braquiorradial", "1s subida de codos · 2s bajada", "Exhala al elevar codos", [
+      "Agarre ligeramente más ancho que hombros para proteger manguitos.",
+      "Lidera siempre con los codos subiendo hasta la altura del esternón/hombros.",
+      "Baja controlado manteniendo la barra cerca del cuerpo.",
+    ], ["Agarre muy cerrado provocando pinzamiento en hombro.", "Subir muñecas más alto que los codos."]);
+  }
   if (raw.includes("barra t") || raw.includes("meadows")) {
     return make("row_tbar", "Espalda Media · Dorsal · Romboides", "Bíceps, Erectores", "1s tirón al pecho · 2s estiramiento", "Exhala al subir discos al pecho", [
       "Bisagra firme de cadera con espalda neutra (~45°) y pecho sobre el apoyo/barra.",
@@ -495,13 +503,6 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Pausa 1s en máxima contracción y desciende completo estirando.",
     ], ["Hacer círculos con los hombros (riesgo innecesario bajo carga).", "Ayudarse doblando codos o impulsando piernas."], farmer ? "farmer" : undefined);
   }
-  if (raw.includes("remo al menton") || raw.includes("snatch grip high pull")) {
-    return make("upright_row", "Deltoides Lateral · Trapecio", "Bíceps, Braquiorradial", "1s subida de codos · 2s bajada", "Exhala al elevar codos", [
-      "Agarre ligeramente más ancho que hombros para proteger manguitos.",
-      "Lidera siempre con los codos subiendo hasta la altura del esternón/hombros.",
-      "Baja controlado manteniendo la barra cerca del cuerpo.",
-    ], ["Agarre muy cerrado provocando pinzamiento en hombro.", "Subir muñecas más alto que los codos."]);
-  }
   if (raw.includes("hiperextensiones") || raw.includes("buenos dias") || raw.includes("superman")) {
     return make("back_ext", "Erectores Espinales · Glúteos · Femoral", "Core Posterior", "2s bisagra controlada · 1s subida", "Inhala al bajar, exhala al extender a línea recta", [
       "Coloca el cojín justo por debajo de la línea pélvica para girar desde cadera.",
@@ -525,6 +526,21 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
     ], ["Erguir todo el torso en cada tirón usando balanceo.", "Encorvar zona lumbar."]);
   }
 
+  if (raw.includes("curl femoral sentado") || raw.includes("femoral de pie")) {
+    return make("leg_curl_seated", "Isquiosurales (Estiramiento en Máquina)", "Gemelos", "1s flexión abajo · 3s vuelta controlada", "Exhala al bajar rodillo, inhala al subir despacio", [
+      "Fija bien el cojín superior apretando los muslos contra el asiento.",
+      "Lleva los talones todo hacia atrás debajo del asiento contrayendo femoral.",
+      "Regresa muy controlado estirando por completo la parte trasera del muslo.",
+    ], ["Dejar subir el rodillo rápido perdiendo tensión abajo.", "Despegar el lumbar del respaldo al tirar."], undefined, "machine");
+  }
+  if (raw.includes("curl femoral") || raw.includes("curl nordico") || raw.includes("glute ham")) {
+    return make("leg_curl_prone", "Isquiosurales (Femoral Tumbado)", "Gemelos, Glúteo", "1s flexión · 3s descenso lento", "Exhala al acercar talones, inhala al extender", [
+      "Presiona fuertemente el pubis/cadera contra el banco sin levantarlo al tirar.",
+      "Acerca el rodillo hacia los glúteos manteniendo tobillos firmes.",
+      "Frena la bajada durante 2–3 segundos sin dejar rebotar placas.",
+    ], ["Arquear zona lumbar despegando cadera en el tirón.", "Acortar el recorrido arriba sin extender piernas abajo."], undefined, equip === "bodyweight" ? "bodyweight" : "machine");
+  }
+
   /* ---------- ARMS: BICEPS & FOREARM ---------- */
   if (raw.includes("predicador") || raw.includes("concentrado")) {
     return make("biceps_preacher", "Bíceps Braquial (Banco Scott)", "Braquial", "1s subida · 3s extensión lenta", "Exhala al subir, inhala estirando abajo", [
@@ -538,7 +554,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Apoya espalda en banco a 45° dejando brazos colgar verticales atrás.",
       "Sube sin adelantar los codos hacia delante manteniendo el estiramiento del hombro.",
       "Extiende abajo al 100% activando tríceps brevemente en cada rep.",
-    ], ["Balancear los codos hacia delante perdiendo la tensión trasera.", "Despegar cabeza y espalda del banco."], undefined, equip === "barbell" ? "barbell" : "dumbbell");
+    ], ["Balancear los codos hacia delante perdiendo la tensión trasera.", "Despegar cabeza y espalda del banco."], undefined, (equip === "barbell" || equip === "ezbar") ? equip : "dumbbell");
   }
   if (raw.includes("polea alta") || raw.includes("bayesiano")) {
     return make("biceps_high_cable", "Bíceps en Tensión Constante (Polea)", "Braquial, Antebrazo", "1s cierre · 2–3s estiramiento", "Exhala al llevar manos hacia cabeza/adelante", [
@@ -554,12 +570,13 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Baja controlando hasta la punta de los dedos si realizas curl flexor.",
     ], ["Despegar los codos del banco.", "Usar demasiado peso limitando todo el rango de muñeca."]);
   }
-  if (exId === "curl" || exId === "hammer" || raw.includes("curl")) {
+  if (exId === "curl" || exId === "hammer" || (raw.includes("curl") && !raw.includes("femoral") && !raw.includes("nordico") && !raw.includes("jefferson"))) {
+    const curlEq = exId === "curl" || exId === "hammer" ? "dumbbell" : equip;
     return make("biceps_standing", raw.includes("martillo") ? "Braquial · Bíceps · Braquiorradial" : "Bíceps Braquial", "Antebrazo", "1s subida · 2–3s bajada completa", "Exhala al subir, inhala al extender abajo", [
       "Codos fijados a los costados sin echar hombros atrás.",
       "Flexiona completo hasta sentir pico máximo sin bajar codos.",
       "Extiende abajo casi al 100% controlando el peso.",
-    ], ["Columpiar el torso al arrancar.", "Hacer medias repeticiones sin bajar del todo."]);
+    ], ["Columpiar el torso al arrancar.", "Hacer medias repeticiones sin bajar del todo."], undefined, curlEq);
   }
 
   /* ---------- ARMS: TRICEPS ---------- */
@@ -636,20 +653,6 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Sube extendiendo del todo, pausa 1s arriba y frena la bajada 3s.",
     ], ["Dar patada inicial usando impulso del torso.", "Dejar caer las placas de golpe bajando."], undefined, "machine");
   }
-  if (raw.includes("curl femoral sentado") || raw.includes("femoral de pie")) {
-    return make("leg_curl_seated", "Isquiosurales (Estiramiento en Máquina)", "Gemelos", "1s flexión abajo · 3s vuelta controlada", "Exhala al bajar rodillo, inhala al subir despacio", [
-      "Fija bien el cojín superior apretando los muslos contra el asiento.",
-      "Lleva los talones todo hacia atrás debajo del asiento contrayendo femoral.",
-      "Regresa muy controlado estirando por completo la parte trasera del muslo.",
-    ], ["Dejar subir el rodillo rápido perdiendo tensión abajo.", "Despegar el lumbar del respaldo al tirar."], undefined, "machine");
-  }
-  if (raw.includes("curl femoral") || raw.includes("curl nordico") || raw.includes("glute ham")) {
-    return make("leg_curl_prone", "Isquiosurales (Femoral Tumbado)", "Gemelos, Glúteo", "1s flexión · 3s descenso lento", "Exhala al acercar talones, inhala al extender", [
-      "Presiona fuertemente el pubis/cadera contra el banco sin levantarlo al tirar.",
-      "Acerca el rodillo hacia los glúteos manteniendo tobillos firmes.",
-      "Frena la bajada durante 2–3 segundos sin dejar rebotar placas.",
-    ], ["Arquear zona lumbar despegando cadera en el tirón.", "Acortar el recorrido arriba sin extender piernas abajo."], undefined, equip === "bodyweight" ? "bodyweight" : "machine");
-  }
   if (raw.includes("step up")) {
     return make("step_up", "Glúteos · Cuádriceps (Unilateral)", "Core, Estabilizadores", "1s subida sobre cajón · 2–3s bajada", "Exhala al subir sobre cajón, inhala al bajar", [
       "Apoya todo el pie firme encima del cajón e inclina levemente torso adelante.",
@@ -658,11 +661,12 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
     ], ["Impulsarte dando patada con el pie de apoyo abajo.", "Cajón demasiado alto curvando la zona lumbar."]);
   }
   if (exId === "lunge" || raw.includes("zancada") || raw.includes("monster walk")) {
+    const lungeEq = exId === "lunge" ? "dumbbell" : equip;
     return make("lunge", "Cuádriceps · Glúteos", "Core, Aductores", "2s descenso · 1s subida", "Inhala al descender vertical, exhala al impulsar", [
       "Mantén separación lateral al ancho de caderas para estabilidad firme.",
       "Baja vertical hasta formar ~90° en ambas rodillas sin golpear suelo.",
       "Empuja a través de talón y medio pie manteniendo tronco firme.",
-    ], ["Dejar que la rodilla delantera se venza hacia dentro.", "Caminar sobre una sola línea recta estrecha."]);
+    ], ["Dejar que la rodilla delantera se venza hacia dentro.", "Caminar sobre una sola línea recta estrecha."], undefined, lungeEq);
   }
   if (raw.includes("patada de gluteo") || raw.includes("patada_de_gluteo") || raw.includes("pull through")) {
     return make("glute_kickback", "Glúteo Mayor (Extensión Cadera)", "Femoral, Core", "1s patada atrás · 1s apriete · 2s vuelta", "Exhala al extender cadera atrás", [
