@@ -475,7 +475,7 @@ export function drawExerciseFrame(
   switch (spec.pattern) {
     /* 1. CHEST PRESS MACHINE (Seated upright pushing lever arm forward, moving rear weight stack) */
     case "chest_press_machine": {
-      const pushX = 39 + p * 11;
+      const pushX = 37 + p * 8;
       // Rear machine tower & weight stack
       drawWeightStack(10, 12, F, p, 24, 16);
       r(21, 15, 3, F - 15, P_FRAME);
@@ -484,9 +484,10 @@ export function drawExerciseFrame(
       r(25, 38, 12, 3, P_PAD);
       r(29, 41, 3, F - 41, P_FRAME);
       r(23, 21, 3, 18, P_PAD_HI);
-      // Lever arm pivoted from top frame down to handles
-      seg(23, 14, pushX + 1, 29, 3, P_STEEL_DK);
-      r(pushX, 27, 3, 6, P_PLATE);
+      // Overhead pivot & lever arm clearing athlete head down to handles
+      r(23, 12, 6, 3, P_FRAME_LT);
+      seg(27, 13, pushX + 1, 28, 3, P_STEEL_DK);
+      r(pushX, 26, 3, 6, P_PLATE);
 
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
@@ -498,12 +499,12 @@ export function drawExerciseFrame(
         drawShoe(41, F - 2, 1, o);
         drawHead(30, 18, "right", o);
         const shX = 31, shY = 26;
-        const elX = shX - 2 + p * 7, elY = 30 - p * 1;
+        const elX = shX - 2 + p * 7, elY = 30 - p * 2;
         seg(shX, shY, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
-        seg(elX, elY, pushX, 30, 2.8 + e, o ? P_OUT : P_SKIN);
+        seg(elX, elY, pushX, 28, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      drawSpark(54, 24);
-      drawArrow(55, 29, phase === "EXC" ? "left" : "right", phase === "CON" ? P_PIN : "#3df2ff");
+      drawSpark(49, 23);
+      drawArrow(51, 28, phase === "EXC" ? "left" : "right", phase === "CON" ? P_PIN : "#3df2ff");
       break;
     }
 
@@ -566,8 +567,8 @@ export function drawExerciseFrame(
       drawPulley(63, pulY);
 
       const spread = 1 - p;
-      const hxOff = 2 + spread * 14;
-      const hy = low ? 37 - p * 15 : high ? 22 + p * 10 : 28 + p * 2;
+      const hxOff = 3 + spread * 11;
+      const hy = low ? 34 - p * 12 : high ? 20 + p * 10 : 25 + p * 2;
 
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
@@ -581,7 +582,7 @@ export function drawExerciseFrame(
         drawShoe(45, F - 2, 0, o);
         for (const s of [-1, 1]) {
           const shX = 40 + s * 6, shY = 22;
-          const elX = 40 + s * (6 + spread * 11), elY = 25 + (low ? 4 : -1);
+          const elX = 40 + s * (7 + spread * 8), elY = 25 + (low ? 3 - p * 1 : -1);
           seg(shX, shY, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
           seg(elX, elY, 40 + s * hxOff, hy, 2.8 + e, o ? P_OUT : P_SKIN);
         }
@@ -603,7 +604,7 @@ export function drawExerciseFrame(
       const isBand = spec.equip === "band";
       const floor = v === "floor";
       const bx = v === "incline" ? 31 : 29;
-      const pressY = v === "incline" ? 28 - p * 14 : floor ? 43 - p * 13 : 31 - p * 15;
+      const pressY = v === "incline" ? 29 - p * 10 : floor ? 44 - p * 10 : v === "decline" ? 35 - p * 12 : 32 - p * 12;
 
       // Apparatus behind athlete
       if (isSmith) {
@@ -645,7 +646,7 @@ export function drawExerciseFrame(
           drawShoe(54, F - 2, 1, o);
           drawHead(23, 27, "right", o);
           const shX = 30, shY = 34;
-          const elX = shX - 2 + p * 3, elY = shY + 4 - p * 9;
+          const elX = shX - 2 + p * 3, elY = shY + 4 - p * 11;
           seg(shX, shY, elX, elY, 3 + e, o ? P_OUT : ARM_C);
           seg(elX, elY, 31, pressY, 2.8 + e, o ? P_OUT : P_SKIN);
         } else {
@@ -656,7 +657,7 @@ export function drawExerciseFrame(
           seg(50, baseY, 54, F - 2, 3.2 + e, o ? P_OUT : P_SKIN);
           drawShoe(54, F - 2, 1, o);
           const shX = 28, shY = baseY - 2;
-          const elX = 27 + p * 2, elY = shY + (floor ? 1 : v === "decline" ? 0 : 3) - p * 9;
+          const elX = 27 + p * 2, elY = shY + (floor ? 3 : v === "decline" ? 1 : 4) - p * 10;
           seg(shX, shY, elX, elY, 3 + e, o ? P_OUT : ARM_C);
           seg(elX, elY, 29, pressY, 2.8 + e, o ? P_OUT : P_SKIN);
         }
@@ -665,6 +666,8 @@ export function drawExerciseFrame(
       if (isBand) {
         seg(20, 41, bx, pressY, 1.5, P_BAND);
         seg(38, 41, bx, pressY, 1.5, P_BAND);
+      } else if (spec.equip === "kettlebell") {
+        drawKettlebell(bx, pressY);
       } else if (isDb) {
         drawDumbbell(bx, pressY, false);
       } else {
@@ -692,9 +695,9 @@ export function drawExerciseFrame(
       const shX = inc ? 30 : 29;
       const shY = inc ? 34 : 36;
       const elX = shX + 3 - p * 2;
-      const elY = shY + 5 - p * 12;
+      const elY = shY + 4 - p * 11;
       const hx = shX + 4 - p * 4;
-      const hy = (inc ? 41 : 44) - p * 23;
+      const hy = (shY + 8) - p * 22;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -725,8 +728,8 @@ export function drawExerciseFrame(
       r(36, 44, 4, F - 44, P_FRAME);
       // Angle sweeps from behind head up over chest, with slight elbow bend clearing forehead
       const ang = -2.25 + p * 1.35;
-      const hx = 34 + Math.cos(ang) * 18;
-      const hy = 35 + Math.sin(ang) * 18;
+      const hx = 34 + Math.cos(ang) * 15;
+      const hy = 35 + Math.sin(ang) * 15;
       const elX = (34 + hx) / 2 + (1 - p) * 2;
       const elY = (35 + hy) / 2 - 4;
       for (let pass = 0; pass < 2; pass++) {
@@ -748,8 +751,8 @@ export function drawExerciseFrame(
     /* 7. LANDMINE PRESS (Pivoted barbell sleeve on floor plate pushed diagonally overhead) */
     case "landmine_press": {
       r(14, F - 3, 7, 3, P_FRAME_LT); // floor anchor pivot
-      const hx = 45 - p * 5;
-      const hy = 30 - p * 15;
+      const hx = 44 - p * 4;
+      const hy = 30 - p * 14;
       // Angled barbell shaft from floor pivot (17, F-2) through hand
       seg(17, F - 2, hx - 4, hy + 4, 2, P_STEEL);
       drawSidePlate(hx - 2, hy + 2, false);
@@ -762,7 +765,7 @@ export function drawExerciseFrame(
         seg(55, F - 2, 53, 42, 3.2 + e, o ? P_OUT : P_SKIN);
         seg(52, 42, 50, 26, 5.5 + e, o ? P_OUT : CHEST_C);
         drawHead(49, 19, "left", o);
-        const elX = 52 - p * 4, elY = 34 - p * 7;
+        const elX = 52 - p * 5, elY = 33 - p * 7;
         seg(50, 27, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
         seg(elX, elY, hx, hy, 2.8 + e, o ? P_OUT : P_SKIN);
       }
@@ -838,13 +841,13 @@ export function drawExerciseFrame(
     /* 10. PARALLEL / RING DIPS */
     case "dips_parallel": {
       const rings = spec.equip === "rings";
-      const dipDrop = (1 - p) * 10;
+      const dipDrop = (1 - p) * 9;
       if (rings) {
         r(14, 4, 52, 2, P_FRAME_LT);
         r(30, 6, 2, 24, P_PAD_HI);
         r(48, 6, 2, 24, P_PAD_HI);
-        r(29, 30, 4, 4, P_RING);
-        r(47, 30, 4, 4, P_RING);
+        r(29, 29, 4, 4, P_RING);
+        r(47, 29, 4, 4, P_RING);
       } else {
         r(28, 30, 3, F - 30, P_FRAME);
         r(49, 30, 3, F - 30, P_FRAME);
@@ -852,7 +855,7 @@ export function drawExerciseFrame(
         r(45, 29, 9, 3, P_STEEL_DK);
       }
 
-      const shY = 18 + dipDrop;
+      const shY = 17 + dipDrop;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -868,7 +871,11 @@ export function drawExerciseFrame(
           seg(elX, elY, 40 + s * 9, 30, 2.8 + e, o ? P_OUT : P_SKIN);
         }
       }
-      drawSpark(40, 12);
+      if (rings) {
+        r(29, 31, 4, 2, P_RING);
+        r(47, 31, 4, 2, P_RING);
+      }
+      drawSpark(40, 11);
       break;
     }
 
@@ -877,7 +884,7 @@ export function drawExerciseFrame(
       r(14, 36, 18, 4, P_PAD_HI);
       r(16, 40, 3, F - 40, P_FRAME);
       r(28, 40, 3, F - 40, P_FRAME);
-      const drop = (1 - p) * 9;
+      const drop = (1 - p) * 8;
       const shY = 25 + drop;
       const hipY = 36 + drop;
       for (let pass = 0; pass < 2; pass++) {
@@ -887,7 +894,7 @@ export function drawExerciseFrame(
         seg(35, shY, 37, hipY, 6 + e, o ? P_OUT : P_SHIRT);
         seg(37, hipY, 54, F - 3, 4.2 + e, o ? P_OUT : P_SHORTS);
         drawShoe(56, F - 2, 1, o);
-        const elX = 28 - (1 - p) * 3, elY = 31 + (1 - p) * 1;
+        const elX = 28 - (1 - p) * 2, elY = 30 + drop * 0.3;
         seg(34, shY + 1, elX, elY, 3 + e, o ? P_OUT : ARM_C);
         seg(elX, elY, 31, 36, 2.8 + e, o ? P_OUT : P_SKIN);
       }
@@ -1036,8 +1043,8 @@ export function drawExerciseFrame(
     /* 17. FRONT RAISE (Side view raising barbell/dumbbell/cable/plate forward to eye level) */
     case "front_raise": {
       const ang = 1.45 - p * 1.45; // down (83°) -> horizontal straight front (0°)
-      const hx = 37 + Math.cos(ang) * 16;
-      const hy = 25 + Math.sin(ang) * 16;
+      const hx = 37 + Math.cos(ang) * 14;
+      const hy = 25 + Math.sin(ang) * 14;
       if (spec.equip === "cable") {
         drawWeightStack(10, 12, F, p);
         drawPulley(21, F - 5);
@@ -1066,8 +1073,8 @@ export function drawExerciseFrame(
         drawWeightStack(6, 12, F, p);
         drawPulley(17, F - 5);
         const cx = 44;
-        const rx = cx + 7 + Math.cos(ang) * 14;
-        const ry = 22 + Math.sin(ang) * 14;
+        const rx = cx + 6 + Math.cos(ang) * 13;
+        const ry = 22 + Math.sin(ang) * 13;
         // Cable routed behind legs/hips so it doesn't slice across the blue torso
         seg(17, F - 5, rx, ry, 1.2, P_CABLE);
         for (let pass = 0; pass < 2; pass++) {
@@ -1098,14 +1105,14 @@ export function drawExerciseFrame(
           drawShoe(36, F - 2, 0, o);
           drawShoe(44, F - 2, 0, o);
           for (const s of [-1, 1]) {
-            const hx = 40 + s * (7 + Math.cos(ang) * 14);
-            const hy = 22 + Math.sin(ang) * 14;
+            const hx = 40 + s * (6 + Math.cos(ang) * 13);
+            const hy = 22 + Math.sin(ang) * 13;
             seg(40 + s * 6, 22, hx, hy, 3 + e, o ? P_OUT : DELT_C);
           }
         }
         for (const s of [-1, 1]) {
-          const hx = 40 + s * (7 + Math.cos(ang) * 14);
-          const hy = 22 + Math.sin(ang) * 14;
+          const hx = 40 + s * (6 + Math.cos(ang) * 13);
+          const hy = 22 + Math.sin(ang) * 13;
           if (spec.equip === "band") seg(40 + s * 3, F - 2, hx, hy, 1, P_BAND);
           else drawDumbbell(hx, hy, true);
         }
@@ -1123,11 +1130,11 @@ export function drawExerciseFrame(
       r(38, 12, 4, 30, P_FRAME);
       r(33, 42, 14, 3, P_PAD);
       r(38, 45, 4, F - 45, P_FRAME);
-      const ang = 1.3 - p * 1.25;
+      const ang = 1.2 - p * 1.15;
       // Hinged pads at shoulders
       for (const s of [-1, 1]) {
-        const elbowX = 40 + s * (7 + Math.cos(ang) * 12);
-        const elbowY = 23 + Math.sin(ang) * 12;
+        const elbowX = 40 + s * (9 + Math.cos(ang) * 7);
+        const elbowY = 23 + Math.sin(ang) * 7;
         seg(40 + s * 6, 22, elbowX, elbowY, 2.5, P_STEEL);
         r(elbowX - 2, elbowY - 2, 5, 5, P_PAD_HI);
       }
@@ -1142,10 +1149,10 @@ export function drawExerciseFrame(
         drawShoe(36, F - 2, 0, o);
         drawShoe(44, F - 2, 0, o);
         for (const s of [-1, 1]) {
-          const elX = 40 + s * (7 + Math.cos(ang) * 12);
-          const elY = 23 + Math.sin(ang) * 12;
+          const elX = 40 + s * (9 + Math.cos(ang) * 7);
+          const elY = 23 + Math.sin(ang) * 7;
           seg(40 + s * 6, 22, elX, elY, 3 + e, o ? P_OUT : DELT_C);
-          seg(elX, elY, elX - s * 4, elY + 3, 2.6 + e, o ? P_OUT : P_SKIN);
+          seg(elX, elY, elX - s * 2, elY + 5, 2.6 + e, o ? P_OUT : P_SKIN);
         }
       }
       drawSpark(40, 16);
@@ -1159,8 +1166,8 @@ export function drawExerciseFrame(
       r(30, 21, 3, 14, P_PAD_HI); // chest pad in front of torso
       r(33, 39, 12, 3, P_PAD);
       r(37, 42, 3, F - 42, P_FRAME);
-      // p=0: reaching forward toward pivot tower (hx=25); p=1: sweeping wide backward (hx=44)!
-      const hx = 25 + p * 19;
+      // p=0: reaching forward toward pivot tower (hx=25); p=1: sweeping wide backward (hx=41)!
+      const hx = 25 + p * 16;
       // Overhead radial boom clear of head + vertical drop handle arm
       r(Math.min(29, hx), 11, Math.abs(hx - 29) + 2, 2, P_STEEL_DK);
       seg(hx, 12, hx, 25, 2, P_STEEL_DK);
@@ -1200,14 +1207,21 @@ export function drawExerciseFrame(
       break;
     }
 
-    /* 22. FACE PULL (Standing facing cable tower pulling yellow rope toward forehead) */
+    /* 22. FACE PULL (Standing facing cable/band anchor pulling toward forehead; or DB external rotation) */
     case "facepull": {
-      drawWeightStack(10, 12, F, p);
-      drawPulley(21, 18);
-      const hx = 34 + p * 12;
-      const hy = 22 - p * 2;
-      seg(21, 18, hx, hy, 1.3, P_CABLE);
-      r(hx - 1, hy - 2, 3, 5, P_PAD_HI);
+      const isBand = spec.equip === "band";
+      const isDb = spec.equip === "dumbbell";
+      const hx = isDb ? 44 + p * 2 : 35 + p * 11;
+      const hy = isDb ? 27 - p * 9 : 22 - p * 2;
+      if (isBand) {
+        r(17, 14, 3, F - 14, P_FRAME);
+        seg(20, 18, hx, hy, 1.5, P_BAND);
+      } else if (!isDb) {
+        drawWeightStack(10, 12, F, p);
+        drawPulley(21, 18);
+        seg(21, 18, hx, hy, 1.3, P_CABLE);
+        r(hx - 1, hy - 2, 3, 5, P_PAD_HI);
+      }
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1217,18 +1231,22 @@ export function drawExerciseFrame(
         seg(53, F - 2, 50, 41, 3.2 + e, o ? P_OUT : P_SKIN);
         seg(50, 41, 50, 25, 6 + e, o ? P_OUT : P_SHIRT);
         drawHead(49, 18, "left", o);
-        const elX = 41 + p * 12, elY = 25 - p * 2;
+        const elX = isDb ? 43 : 42 + p * 11;
+        const elY = isDb ? 25 : 25 - p * 2;
         seg(48, 25, elX, elY, 3 + e, o ? P_OUT : DELT_C);
         seg(elX, elY, hx, hy, 2.8 + e, o ? P_OUT : P_SKIN);
       }
+      if (isDb) drawDumbbell(hx, hy, true);
       drawSpark(49, 22);
       break;
     }
 
     /* 23. SHRUGS / FARMER'S WALK */
     case "shrug": {
-      const shrugY = p * 4.5;
+      const shrugY = p * 4;
       const hx = spec.subVariant === "farmer" ? 13 : 0;
+      if (spec.equip === "smith") drawSmithFrame(14, 7, F);
+      else if (spec.equip === "cable") drawWeightStack(6, 12, F, p);
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1240,14 +1258,14 @@ export function drawExerciseFrame(
         drawShoe(36, F - 2, 0, o);
         drawShoe(44, F - 2, 0, o);
         for (const s of [-1, 1]) {
-          seg(40 + s * 6, 22 - shrugY, 40 + s * 8, 39 - shrugY, 3 + e, o ? P_OUT : P_SKIN);
+          seg(40 + s * 6, 22 - shrugY, 40 + s * 8, 37 - shrugY, 3 + e, o ? P_OUT : P_SKIN);
         }
       }
       if (spec.equip === "dumbbell" || hx > 0) {
-        drawDumbbell(31, 40 - shrugY, true);
-        drawDumbbell(49, 40 - shrugY, true);
+        drawDumbbell(31, 38 - shrugY, true);
+        drawDumbbell(49, 38 - shrugY, true);
       } else {
-        drawFrontBarbell(40, 40 - shrugY, 17);
+        drawFrontBarbell(40, 38 - shrugY, 17);
       }
       drawSpark(40, 17);
       break;
@@ -1255,7 +1273,7 @@ export function drawExerciseFrame(
 
     /* 24. UPRIGHT ROW (Front view pulling barbell/EZ/cable up chest with high elbows) */
     case "upright_row": {
-      const barY = 39 - p * 16;
+      const barY = 37 - p * 14;
       if (spec.equip === "cable") {
         drawWeightStack(10, 12, F, p);
         drawPulley(21, F - 4);
@@ -1298,7 +1316,7 @@ export function drawExerciseFrame(
         r(46, barY + 7, 4, 4, P_RING);
       }
       const gripY = rings ? barY + 9 : barY + 1;
-      const bodyTop = 27 - p * 12;
+      const bodyTop = 25 - p * 12;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1345,19 +1363,25 @@ export function drawExerciseFrame(
       break;
     }
 
-    /* 27. LAT PULLDOWN (Seated under high pulley tower + knee hold-down pad + moving weight stack!) */
+    /* 27. LAT PULLDOWN (Seated under high pulley tower or band anchor + knee hold-down pad!) */
     case "pulldown_cable": {
-      drawWeightStack(10, 9, F, p);
-      // High overhead boom + pulley
-      r(15, 7, 31, 3, P_FRAME_LT);
-      drawPulley(42, 10);
+      const isBand = spec.equip === "band";
+      if (isBand) {
+        r(36, 6, 12, 3, P_FRAME_LT);
+      } else {
+        drawWeightStack(10, 9, F, p);
+        // High overhead boom + pulley
+        r(15, 7, 31, 3, P_FRAME_LT);
+        drawPulley(42, 10);
+      }
       // Seat & knee hold-down pad
       r(38, 41, 14, 3, P_PAD);
       r(43, 44, 3, F - 44, P_FRAME);
-      r(34, 33, 6, 3, P_PAD_HI); // thigh pad
+      if (!isBand) r(34, 33, 6, 3, P_PAD_HI); // thigh pad
       const barY = 14 + p * 14;
-      seg(42, 10, 42, barY, 1.3, spec.equip === "band" ? P_BAND : P_CABLE);
-      r(32, barY - 1, 20, 2, P_STEEL); // wide lat bar
+      seg(42, isBand ? 9 : 10, 42, barY, 1.4, isBand ? P_BAND : P_CABLE);
+      if (!isBand) r(32, barY - 1, 20, 2, P_STEEL); // wide lat bar
+      else r(37, barY - 1, 10, 2, P_PAD_HI);
 
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
@@ -1457,17 +1481,17 @@ export function drawExerciseFrame(
       r(25, 45, 3, F - 45, P_FRAME);
       r(57, 45, 3, F - 45, P_FRAME);
       r(24, 36, 4, 8, P_STEEL_DK); // footplate
-      const hx = 33 + p * 12;
+      const hx = 35 + p * 11;
       seg(21, 36, hx, 34, 1.3, P_CABLE);
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
         drawShoe(29, 40, -1, o);
         seg(29, 40, 50, 40, 4.2 + e, o ? P_OUT : P_SHORTS);
-        const lean = p * 5;
+        const lean = p * 3;
         seg(50, 40, 49 + lean, 25, 6 + e, o ? P_OUT : BACK_C);
         drawHead(49 + lean, 18, "left", o);
-        const elX = 43 + p * 13, elY = 33;
+        const elX = 44 + p * 11, elY = 33;
         seg(49 + lean, 27, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
         seg(elX, elY, hx, 34, 2.8 + e, o ? P_OUT : P_SKIN);
       }
@@ -1525,29 +1549,37 @@ export function drawExerciseFrame(
       break;
     }
 
-    /* 34. INVERTED / AUSTRALIAN ROW (Horizontal rack bar, heels on floor pulling chest up) */
+    /* 34. INVERTED / AUSTRALIAN ROW (Horizontal rack bar or rings, heels on floor pulling chest up) */
     case "row_inverted": {
-      r(36, 19, 24, 3, P_FRAME_LT); // rack crossbar
-      r(36, 18, 2, F - 18, P_FRAME); // left rack upright
-      r(58, 18, 2, F - 18, P_FRAME); // right rack upright
+      const rings = spec.equip === "rings";
+      r(30, 19, 24, 3, P_FRAME_LT); // rack crossbar
+      r(30, 18, 2, F - 18, P_FRAME); // left rack upright
+      r(52, 18, 2, F - 18, P_FRAME); // right rack upright
+      if (rings) {
+        r(43, 21, 2, 5, P_PAD_HI);
+        r(42, 26, 4, 4, P_RING);
+      }
+      const gripY = rings ? 27 : 21;
       const lift = p * 8;
-      const shY = 36 - lift;
-      const hipY = 44 - lift * 0.55;
+      const shY = (rings ? 41 : 36) - lift;
+      const hipY = (rings ? 47 : 44) - lift * 0.55;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
-        drawShoe(16, F - 2, -1, o);
-        seg(17, F - 2, 34, hipY, 4 + e, o ? P_OUT : P_SHORTS);
-        seg(34, hipY, 50, shY, 6 + e, o ? P_OUT : BACK_C);
-        drawHead(54, shY - 2, "up", o);
-        const elX = 47 + p * 2, elY = (shY + 21) / 2;
-        seg(50, shY, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
-        seg(elX, elY, 50, 21, 2.8 + e, o ? P_OUT : P_SKIN);
+        drawShoe(10, F - 2, -1, o);
+        seg(11, F - 2, 28, hipY, 4 + e, o ? P_OUT : P_SHORTS);
+        seg(28, hipY, 44, shY, 6 + e, o ? P_OUT : BACK_C);
+        drawHead(48, shY - 2, "up", o);
+        const elX = 41 + p * 2, elY = (shY + gripY) / 2;
+        seg(44, shY, elX, elY, 3 + e, o ? P_OUT : P_SKIN);
+        seg(elX, elY, 44, gripY, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      // Horizontal bar & J-cup grip over hands
-      r(38, 20, 20, 2, P_STEEL);
-      r(48, 20, 4, 2, P_PIN);
-      drawSpark(48, 30);
+      if (!rings) {
+        // Horizontal bar & J-cup grip over hands
+        r(32, 20, 20, 2, P_STEEL);
+        r(42, 20, 4, 2, P_PIN);
+      }
+      drawSpark(42, 31);
       break;
     }
 
@@ -1559,9 +1591,9 @@ export function drawExerciseFrame(
 
       if (sumo) {
         // Distinct wide-stance front view: wide toes out, upright torso, narrow grip inside thighs!
-        const drop = (1 - p) * 11;
+        const drop = (1 - p) * 10;
         const hipY = 34 + drop;
-        const shY = 20 + drop * 0.85;
+        const shY = 21 + drop * 1.1;
         const barY = 38 + drop * 1.1;
         for (let pass = 0; pass < 2; pass++) {
           const o = pass === 0;
@@ -1587,12 +1619,12 @@ export function drawExerciseFrame(
       }
 
       const hipBack = (1 - p) * (rdl ? 11 : 10);
-      const shY = 23 + (1 - p) * (rdl ? 15 : 11);
+      const shY = 23 + (1 - p) * 12;
       const shX = 40 + (1 - p) * (rdl ? 8 : 6);
       const hipX = 36 - hipBack;
       const hipY = 39 + (1 - p) * (rdl ? 1 : 5);
       const kneeX = rdl ? 39 : 40 + (1 - p) * 3;
-      const barY = rdl ? 39 + (1 - p) * 8 : 41 + (1 - p) * 11;
+      const barY = 38 + (1 - p) * (rdl ? 10 : 12);
       if (isSmith) drawSmithSide(42, barY);
 
       for (let pass = 0; pass < 2; pass++) {
@@ -1640,9 +1672,10 @@ export function drawExerciseFrame(
     case "biceps_standing": {
       const isCable = spec.equip === "cable";
       const cx = isCable ? 32 : 38;
+      const elY = 31;
       const ang = 1.45 - p * 2.15;
-      const hx = cx + 1 + Math.cos(ang) * 13;
-      const hy = 35 + Math.sin(ang) * 13;
+      const hx = cx + 1 + Math.cos(ang) * 8;
+      const hy = elY + Math.sin(ang) * 8;
       if (isCable) {
         drawWeightStack(60, 12, F, p);
         drawPulley(59, F - 5);
@@ -1656,41 +1689,44 @@ export function drawExerciseFrame(
         r(cx - 2 - e / 2, 36 - e / 2, 5 + e, 8 + e, o ? P_OUT : P_SHORTS);
         r(cx - 1 - e / 2, 44 - e / 2, 3 + e, 10 + e, o ? P_OUT : P_SKIN);
         drawShoe(cx + 1, F - 2, 1, o);
-        seg(cx + 1, 24, cx + 1, 35, 3.2 + e, o ? P_OUT : ARM_C); // locked upper arm!
-        seg(cx + 1, 35, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        seg(cx + 1, 23, cx + 1, elY, 3.2 + e, o ? P_OUT : ARM_C); // 8px locked upper arm!
+        seg(cx + 1, elY, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       if (spec.equip === "band") seg(cx + 1, F - 2, hx, hy, 1.4, P_BAND);
       else if (spec.equip === "dumbbell") drawDumbbell(hx, hy, false);
       else if (spec.equip === "ezbar" || spec.equip === "barbell") drawSidePlate(hx, hy, false);
       else if (isCable) r(hx - 1, hy - 1, 3, 3, P_PIN);
-      drawSpark(cx + 3, 29);
+      drawSpark(cx + 3, 27);
       break;
     }
 
     /* 38. PREACHER CURL / SCOTT BENCH (Angled preacher pad pinning elbows steady, curling forward-up) */
     case "biceps_preacher": {
+      if (spec.equip === "machine") drawWeightStack(10, 12, F, p);
       // Scott Bench: seat on right, angled pad on left
-      r(44, 41, 12, 3, P_PAD);
-      r(48, 44, 3, F - 44, P_FRAME);
-      r(31, 35, 3, F - 35, P_FRAME);
-      seg(29, 36, 37, 29, 4, P_PAD_HI); // angled Scott pad
-      const ang = 2.05 - p * 2.25; // extended down pad -> curled crisp up in front of chest!
-      const hx = 31 + Math.cos(ang) * 11;
-      const hy = 35 + Math.sin(ang) * 11;
+      r(41, 41, 12, 3, P_PAD);
+      r(45, 44, 3, F - 44, P_FRAME);
+      r(33, 32, 3, F - 32, P_FRAME);
+      seg(31, 33, 39, 26, 4, P_PAD_HI); // angled Scott pad
+      const elX = 34, elY = 31;
+      const ang = 2.05 - p * 2.1; // extended down pad -> curled crisp up in front of chest!
+      const hx = elX + Math.cos(ang) * 8;
+      const hy = elY + Math.sin(ang) * 8;
+      if (spec.equip === "machine") seg(26, 36, hx, hy, 2, P_STEEL_DK);
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
-        drawHead(46, 19, "left", o);
-        seg(47, 25, 49, 39, 6 + e, o ? P_OUT : P_SHIRT);
-        seg(49, 39, 39, 41, 4.5 + e, o ? P_OUT : P_SHORTS);
-        seg(39, 41, 38, F - 2, 3.2 + e, o ? P_OUT : P_SKIN);
-        drawShoe(37, F - 2, -1, o);
-        seg(45, 27, 31, 35, 3.2 + e, o ? P_OUT : ARM_C); // pinned along pad
-        seg(31, 35, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        drawHead(43, 19, "left", o);
+        seg(43, 25, 46, 39, 6 + e, o ? P_OUT : P_SHIRT);
+        seg(46, 39, 36, 41, 4.5 + e, o ? P_OUT : P_SHORTS);
+        seg(36, 41, 35, F - 2, 3.2 + e, o ? P_OUT : P_SKIN);
+        drawShoe(34, F - 2, -1, o);
+        seg(41, 26, elX, elY, 3.2 + e, o ? P_OUT : ARM_C); // pinned along pad
+        seg(elX, elY, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       if (spec.equip === "dumbbell") drawDumbbell(hx, hy, false);
       else drawSidePlate(hx, hy, false);
-      drawSpark(34, 28);
+      drawSpark(35, 25);
       break;
     }
 
@@ -1700,9 +1736,10 @@ export function drawExerciseFrame(
       r(45, 43, 3, F - 43, P_FRAME);
       seg(26, 26, 39, 41, 4, P_PAD_HI); // 45° backrest parallel behind athlete's back!
       r(39, 41, 12, 3, P_PAD);
-      const ang = 1.48 - p * 2.32;
-      const hx = 35 + Math.cos(ang) * 12;
-      const hy = 36 + Math.sin(ang) * 12;
+      const elX = 32, elY = 35;
+      const ang = 1.48 - p * 2.2;
+      const hx = elX + Math.cos(ang) * 8;
+      const hy = elY + Math.sin(ang) * 8;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1711,24 +1748,25 @@ export function drawExerciseFrame(
         seg(40, 39, 50, 39, 4.5 + e, o ? P_OUT : P_SHORTS);
         seg(50, 39, 51, F - 2, 3.2 + e, o ? P_OUT : P_SKIN);
         drawShoe(52, F - 2, 1, o);
-        seg(32, 28, 35, 36, 3.2 + e, o ? P_OUT : ARM_C); // upper arm locked at side
-        seg(35, 36, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        seg(32, 27, elX, elY, 3.2 + e, o ? P_OUT : ARM_C); // 8px upper arm locked at side
+        seg(elX, elY, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       drawDumbbell(hx, hy, false);
-      drawSpark(42, 23);
+      drawSpark(39, 25);
       break;
     }
 
     /* 40. HIGH CABLE / BAYESIAN BICEPS CURL (Standing with twin high cables curling toward ears) */
     case "biceps_high_cable": {
-      drawWeightStack(4, 10, F, p);
-      drawWeightStack(64, 10, F, p);
-      drawPulley(16, 15);
-      drawPulley(63, 15);
-      const handDist = 11 - p * 5;
-      const hy = 21 - p * 4;
-      seg(16, 15, 40 - handDist, hy, 1.2, P_CABLE);
-      seg(63, 15, 40 + handDist, hy, 1.2, P_CABLE);
+      drawWeightStack(3, 10, F, p);
+      drawWeightStack(66, 10, F, p);
+      drawPulley(14, 15);
+      drawPulley(65, 15);
+      const ang = 0.05 + p * 2.2; // horizontal outstretched -> flexed beside ears
+      const handXOff = 13 + Math.cos(ang) * 7;
+      const hy = 21 - Math.sin(ang) * 7;
+      seg(14, 15, 40 - handXOff, hy, 1.2, P_CABLE);
+      seg(65, 15, 40 + handXOff, hy, 1.2, P_CABLE);
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1741,7 +1779,7 @@ export function drawExerciseFrame(
         drawShoe(44, F - 2, 0, o);
         for (const s of [-1, 1]) {
           seg(40 + s * 6, 22, 40 + s * 13, 21, 3 + e, o ? P_OUT : ARM_C);
-          seg(40 + s * 13, 21, 40 + s * handDist, hy, 2.8 + e, o ? P_OUT : ARM_C);
+          seg(40 + s * 13, 21, 40 + s * handXOff, hy, 2.8 + e, o ? P_OUT : ARM_C);
         }
       }
       drawSpark(40, 14);
@@ -1753,9 +1791,9 @@ export function drawExerciseFrame(
       drawWeightStack(10, 9, F, p);
       r(18, 7, 17, 3, P_FRAME_LT);
       drawPulley(33, 10);
-      const ang = -0.45 + p * 1.85; // bent up -> straight down lockout!
-      const hx = 44 + Math.cos(ang) * 11;
-      const hy = 30 + Math.sin(ang) * 11;
+      const ang = 3.85 - p * 2.15; // bent up in front of chest -> straight down lockout!
+      const hx = 45 + Math.cos(ang) * 8;
+      const hy = 30 + Math.sin(ang) * 8;
       seg(33, 10, hx, hy, 1.3, spec.equip === "band" ? P_BAND : P_CABLE);
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
@@ -1765,22 +1803,23 @@ export function drawExerciseFrame(
         r(47 - e / 2, 37 - e / 2, 5 + e, 7 + e, o ? P_OUT : P_SHORTS);
         r(48 - e / 2, 44 - e / 2, 3 + e, 10 + e, o ? P_OUT : P_SKIN);
         drawShoe(47, F - 2, -1, o);
-        seg(49, 24, 44, 30, 3.2 + e, o ? P_OUT : ARM_C);
-        seg(44, 30, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        seg(49, 24, 45, 30, 3.2 + e, o ? P_OUT : ARM_C);
+        seg(45, 30, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       r(hx - 1, hy - 1, 3, 3, P_PIN);
-      drawSpark(46, 27);
+      drawSpark(45, 27);
       break;
     }
 
-    /* 42. SKULLCRUSHER / FRENCH PRESS (Flat bench lying down extending bar overhead from forehead) */
+    /* 42. SKULLCRUSHER / FRENCH PRESS / JM PRESS (Flat bench or Smith bar lowering to forehead -> lockout) */
     case "triceps_skullcrusher": {
+      const ang = -2.75 + p * 1.25; // behind forehead -> vertical lockout
+      const hx = 28 + Math.cos(ang) * 8;
+      const hy = 28 + Math.sin(ang) * 8;
+      if (spec.equip === "smith") drawSmithSide(hx, hy);
       r(22, 43, 3, F - 43, P_FRAME);
       r(48, 43, 3, F - 43, P_FRAME);
       r(18, 40, 35, 3, P_PAD_HI);
-      const ang = -2.75 + p * 1.25; // behind forehead -> vertical lockout
-      const hx = 28 + Math.cos(ang) * 12;
-      const hy = 29 + Math.sin(ang) * 12;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1789,19 +1828,20 @@ export function drawExerciseFrame(
         seg(39, 37, 50, 38, 4.5 + e, o ? P_OUT : P_SHORTS);
         seg(50, 38, 54, F - 2, 3.2 + e, o ? P_OUT : P_SKIN);
         drawShoe(54, F - 2, 1, o);
-        seg(28, 36, 28, 29, 3.2 + e, o ? P_OUT : ARM_C); // vertical upper arm!
-        seg(28, 29, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        seg(28, 36, 28, 28, 3.2 + e, o ? P_OUT : ARM_C); // 8px vertical upper arm!
+        seg(28, 28, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       if (spec.equip === "dumbbell") drawDumbbell(hx, hy, false);
       else drawSidePlate(hx, hy, false);
-      drawSpark(28, 22);
+      drawSpark(28, 21);
       break;
     }
 
     /* 43. OVERHEAD TRICEPS EXTENSION (Seated/Standing behind-head stretch -> vertical lock) */
     case "triceps_overhead": {
-      const hx = 35 + p * 4;
-      const hy = 21 - p * 14;
+      const ang = 2.15 + p * 2.58; // behind neck stretch -> vertical overhead lock
+      const hx = 40 + Math.cos(ang) * 8;
+      const hy = 17 + Math.sin(ang) * 8;
       if (spec.equip === "cable") {
         drawWeightStack(10, 12, F, p);
         drawPulley(21, F - 5);
@@ -1815,19 +1855,24 @@ export function drawExerciseFrame(
         r(40 - e / 2, 39 - e / 2, 5 + e, 6 + e, o ? P_OUT : P_SHORTS);
         r(41 - e / 2, 45 - e / 2, 3 + e, 9 + e, o ? P_OUT : P_SKIN);
         drawShoe(42, F - 2, 1, o);
-        seg(42, 24, 38, 14, 3.2 + e, o ? P_OUT : ARM_C);
-        seg(38, 14, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
+        seg(42, 24, 40, 17, 3.2 + e, o ? P_OUT : ARM_C);
+        seg(40, 17, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
       drawDumbbell(hx, hy, true);
-      drawSpark(39, 6);
+      drawSpark(40, 7);
       break;
     }
 
     /* 44. TRICEPS KICKBACK (Torso parallel, upper arm pinned back, kicking forearm straight behind) */
     case "triceps_kickback": {
-      const ang = 1.45 + p * 1.4; // 90 deg -> horizontal backward lock!
-      const hx = 39 + Math.cos(ang) * 11;
-      const hy = 31 + Math.sin(ang) * 11;
+      const ang = 1.45 + p * 1.55; // 90 deg -> horizontal backward lock!
+      const hx = 39 + Math.cos(ang) * 8;
+      const hy = 31 + Math.sin(ang) * 8;
+      if (spec.equip === "cable") {
+        drawWeightStack(8, 12, F, p);
+        drawPulley(19, F - 5);
+        seg(19, F - 5, hx, hy, 1.2, P_CABLE);
+      }
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -1839,8 +1884,9 @@ export function drawExerciseFrame(
         seg(45, 32, 39, 31, 3.2 + e, o ? P_OUT : ARM_C);
         seg(39, 31, hx, hy, 2.8 + e, o ? P_OUT : ARM_C);
       }
-      drawDumbbell(hx, hy, false);
-      drawSpark(28, 28);
+      if (spec.equip === "cable") r(hx - 1, hy - 1, 3, 3, P_PIN);
+      else drawDumbbell(hx, hy, false);
+      drawSpark(30, 28);
       break;
     }
 
@@ -1871,9 +1917,9 @@ export function drawExerciseFrame(
     case "squat": {
       const drop = (1 - p) * 12; // p=1 top standing, p=0 deep squat!
       const isSmith = spec.equip === "smith";
-      const front = spec.subVariant === "incline" || spec.equip === "dumbbell";
+      const front = spec.subVariant === "incline" || spec.equip === "dumbbell" || spec.equip === "kettlebell";
       const shX = 41, shY = 20 + drop;
-      const bx = front ? shX + 5 : shX - 3;
+      const bx = front ? shX + 4 : shX - 3;
       const barY = shY - 1 + (front ? 3 : 0);
       if (isSmith) {
         drawSmithSide(bx, barY);
@@ -1894,7 +1940,9 @@ export function drawExerciseFrame(
         drawHead(43, shY - 6, "right", o);
         seg(shX + (front ? 3 : -1), shY + 1, bx, barY, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      if (spec.equip === "dumbbell" || spec.equip === "kettlebell") {
+      if (spec.equip === "kettlebell") {
+        drawKettlebell(bx, barY);
+      } else if (spec.equip === "dumbbell") {
         drawDumbbell(bx, barY, true);
       } else if (spec.equip === "barbell" || isSmith) {
         drawSidePlate(bx, barY, true);
@@ -1961,7 +2009,7 @@ export function drawExerciseFrame(
     /* 49. LEG PRESS 45° / HORIZONTAL (Reclined seat + angled rails + support tower + heavy moving plate sled!) */
     case "leg_press": {
       const horiz = spec.subVariant === "flat";
-      const sledShift = p * 11;
+      const sledShift = p * 9;
       // Reclined press base, heavy support frame & twin angled carriage rails
       r(14, 38, 22, 4, P_PAD);
       r(17, 42, 3, F - 42, P_FRAME);
@@ -1988,6 +2036,7 @@ export function drawExerciseFrame(
         seg(27, 37, kneeX, kneeY, 4.8 + e, o ? P_OUT : LEG_C);
         seg(kneeX, kneeY, footX, footY, 3.6 + e, o ? P_OUT : P_SKIN);
         drawShoe(footX, footY, 1, o);
+        seg(19, 30, 28, 38, 2.5 + e, o ? P_OUT : P_SKIN);
       }
       drawSpark(sledX, sledY - 12);
       break;
@@ -2087,9 +2136,11 @@ export function drawExerciseFrame(
         const e = o ? 2 : 0;
         const rFootY = bulg ? 40 : F - 2;
         const rFootX = bulg ? 20 : 25;
+        const rKneeX = bulg ? 30 : 29 + p * 3;
+        const rKneeY = bulg ? 42 + drop * 0.55 : 42 + drop * 0.8;
         drawShoe(rFootX, rFootY, 1, o);
-        seg(rFootX, rFootY - 1, 30, 42 + drop * 0.8, 3.4 + e, o ? P_OUT : P_SKIN);
-        seg(30, 42 + drop * 0.8, hipX, hipY, 4.5 + e, o ? P_OUT : LEG_C);
+        seg(rFootX, rFootY - 1, rKneeX, rKneeY, 3.4 + e, o ? P_OUT : P_SKIN);
+        seg(rKneeX, rKneeY, hipX, hipY, 4.5 + e, o ? P_OUT : LEG_C);
         drawShoe(52, F - 2, 1, o);
         seg(51, F - 2, 50, 42 + drop * 0.4, 3.6 + e, o ? P_OUT : P_SKIN);
         seg(50, 42 + drop * 0.4, hipX, hipY, 4.8 + e, o ? P_OUT : LEG_C);
@@ -2121,8 +2172,10 @@ export function drawExerciseFrame(
         seg(49, F - 12, 48, (F - 12 + hipY) / 2, 3.6 + e, o ? P_OUT : P_SKIN);
         seg(48, (F - 12 + hipY) / 2, hipX, hipY, 4.8 + e, o ? P_OUT : LEG_C);
         const f2X = 31 + p * 14, f2Y = F - 2 - lift;
+        const m2X = (hipX + f2X) / 2, m2Y = (hipY + f2Y) / 2;
         drawShoe(f2X, f2Y, 1, o);
-        seg(f2X, f2Y, hipX, hipY, 4 + e, o ? P_OUT : P_SHORTS_DK);
+        seg(f2X, f2Y, m2X, m2Y, 3.4 + e, o ? P_OUT : P_SKIN);
+        seg(m2X, m2Y, hipX, hipY, 4.4 + e, o ? P_OUT : P_SHORTS_DK);
         seg(hipX, hipY, shX, shY, 6 + e, o ? P_OUT : P_SHIRT);
         drawHead(shX + 1, shY - 6, "right", o);
         if (spec.equip === "barbell") {
@@ -2141,12 +2194,15 @@ export function drawExerciseFrame(
     /* 55. HIP THRUST / GLUTE BRIDGE (Upper back against bench pressing loaded barbell on hips) */
     case "hip_thrust": {
       const floor = spec.subVariant === "floor";
+      const hipY = floor ? F - 4 - p * 11 : 47 - p * 12;
+      const shY = floor ? F - 4 : 38;
+      if (spec.equip === "smith") drawSmithSide(39, hipY - 2);
       if (!floor) {
         r(14, 41, 14, 14, P_FRAME);
         r(14, 39, 15, 3, P_PAD_HI);
+      } else {
+        r(14, F - 2, 46, 2, P_PAD);
       }
-      const hipY = floor ? F - 4 - p * 11 : 47 - p * 12;
-      const shY = floor ? F - 4 : 38;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -2157,25 +2213,46 @@ export function drawExerciseFrame(
         drawShoe(55, F - 2, 1, o);
         seg(29, shY + 1, 38, hipY - 2, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      if (!floor) drawSidePlate(39, hipY - 2, true);
+      if (spec.equip === "band") {
+        seg(30, F - 2, 39, hipY - 2, 1.5, P_BAND);
+        seg(50, F - 2, 39, hipY - 2, 1.5, P_BAND);
+      } else if (spec.equip === "dumbbell") {
+        drawDumbbell(39, hipY - 2, true);
+      } else if (!floor || spec.equip !== "bodyweight") {
+        drawSidePlate(39, hipY - 2, true);
+      }
       drawSpark(39, hipY - 10);
       drawArrow(40, 18, phase === "EXC" ? "down" : "up", phase === "CON" ? P_PIN : "#3df2ff");
       break;
     }
 
-    /* 56. GLUTE KICKBACK (Ankle cuff connected to low cable pulley kicking leg straight back behind glutes!) */
+    /* 56. GLUTE KICKBACK (Ankle cuff/band/machine lever kicking leg straight back behind glutes!) */
     case "glute_kickback": {
-      drawWeightStack(10, 12, F, p);
-      drawPulley(21, F - 5);
+      const isBand = spec.equip === "band";
+      const isMach = spec.equip === "machine";
       const ang = 1.45 - p * 1.15; // straight down -> kicking backward behind athlete!
       const footX = 43 + Math.cos(ang) * 16;
       const footY = 39 + Math.sin(ang) * 16;
-      seg(21, F - 5, footX, footY, 1.3, P_CABLE);
+      if (isBand) {
+        r(19, 28, 3, F - 28, P_FRAME);
+        seg(22, F - 5, footX, footY, 1.5, P_BAND);
+      } else {
+        drawWeightStack(10, 12, F, p);
+        if (isMach) {
+          r(21, 27, 3, F - 27, P_FRAME);
+          seg(43, 38, footX + 1, footY, 2.5, P_STEEL_DK);
+          r(footX - 1, footY - 2, 4, 4, P_PAD_HI);
+        } else {
+          drawPulley(21, F - 5);
+          seg(21, F - 5, footX, footY, 1.3, P_CABLE);
+        }
+      }
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
         drawShoe(44, F - 2, -1, o);
-        seg(43, F - 2, 43, 38, 3.8 + e, o ? P_OUT : P_SKIN);
+        seg(43, F - 2, 43, 46, 3.6 + e, o ? P_OUT : P_SKIN);
+        seg(43, 46, 43, 38, 4.4 + e, o ? P_OUT : LEG_C);
         seg(43, 38, footX, footY, 4.4 + e, o ? P_OUT : LEG_C);
         drawShoe(footX, footY, -1, o);
         seg(43, 37, 34, 24, 6 + e, o ? P_OUT : P_SHIRT);
@@ -2194,6 +2271,8 @@ export function drawExerciseFrame(
       seg(40, 20, 68, 15, 2, P_FRAME);
       seg(40, 21, 68, 16, 1, P_CABLE);
       r(33, 41, 14, 3, P_PAD);
+      r(31, 39, 3, 2, P_STEEL_DK);
+      r(46, 39, 3, 2, P_STEEL_DK);
       r(38, 44, 4, F - 44, P_FRAME);
       const open = add ? 1 - p : p;
       const kneeSpread = 4 + open * 13;
@@ -2207,6 +2286,8 @@ export function drawExerciseFrame(
         drawHead(40, 16, "front", o);
         r(34 - e / 2, 21 - e / 2, 12 + e, 15 + e, o ? P_OUT : P_SHIRT);
         r(34 - e / 2, 36 - e / 2, 12 + e, 6 + e, o ? P_OUT : LEG_C);
+        seg(34, 23, 32, 39, 2.8 + e, o ? P_OUT : P_SKIN);
+        seg(46, 23, 48, 39, 2.8 + e, o ? P_OUT : P_SKIN);
         for (const s of [-1, 1]) {
           const kx = 40 + s * kneeSpread;
           seg(40 + s * 4, 40, kx, 42, 4.4 + e, o ? P_OUT : LEG_C);
@@ -2275,14 +2356,14 @@ export function drawExerciseFrame(
       break;
     }
 
-    /* 60. KETTLEBELL SWING (Crisp hip hinge snap swinging kettlebell from legs to shoulder height!) */
+    /* 60. KETTLEBELL SWING (Crisp hip hinge snap swinging kettlebell/dumbbell from legs to shoulder height!) */
     case "kettlebell_swing": {
       const ang = 1.65 - p * 1.55; // between knees -> straight out front
       const hipBack = (1 - p) * 10;
       const shX = 41 + (1 - p) * 5;
       const shY = 23 + (1 - p) * 8;
-      const hx = shX + Math.cos(ang) * 16;
-      const hy = shY + Math.sin(ang) * 16;
+      const hx = shX + Math.cos(ang) * 14;
+      const hy = shY + Math.sin(ang) * 14;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
@@ -2293,7 +2374,8 @@ export function drawExerciseFrame(
         drawHead(shX + 2, shY - 6, "right", o);
         seg(shX, shY + 2, hx, hy, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      drawKettlebell(hx, hy);
+      if (spec.equip === "dumbbell") drawDumbbell(hx, hy, true);
+      else drawKettlebell(hx, hy);
       drawSpark(hx + 4, hy - 3);
       break;
     }
@@ -2330,30 +2412,37 @@ export function drawExerciseFrame(
       r(59, 6, 2, F - 6, P_FRAME);
       r(19, 6, 42, 2, P_STEEL);
       const legAng = 1.5 - p * 1.9; // straight down -> kicked up near bar!
-      const footX = 36 + Math.cos(legAng) * 16;
-      const footY = 34 + Math.sin(legAng) * 16;
+      const footX = 36 + Math.cos(legAng) * 15;
+      const footY = 36 + Math.sin(legAng) * 15;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
-        seg(36, 17, 36, 7, 2.8 + e, o ? P_OUT : P_SKIN);
-        drawHead(38, 14, "right", o);
-        seg(36, 18, 36, 34, 6 + e, o ? P_OUT : CORE_C);
-        seg(36, 34, footX, footY, 4 + e, o ? P_OUT : P_SHORTS);
+        seg(36, 22, 36, 7, 2.8 + e, o ? P_OUT : P_SKIN);
+        drawHead(38, 16, "right", o);
+        seg(36, 21, 36, 36, 6 + e, o ? P_OUT : CORE_C);
+        seg(36, 36, footX, footY, 4 + e, o ? P_OUT : P_SHORTS);
         drawShoe(footX + 1, footY, 1, o);
       }
-      drawSpark(36, 32);
+      drawSpark(36, 33);
       break;
     }
 
-    /* 63. CABLE CRUNCH / WOODCHOPPER (Kneeling below pulley crunching yellow rope down!) */
+    /* 63. CABLE CRUNCH / WOODCHOPPER (Kneeling crunch or diagonal cable/band/DB woodchop) */
     case "core_cable_crunch": {
-      drawWeightStack(10, 12, F, p);
-      drawPulley(24, 16);
       const chop = spec.subVariant === "woodchop";
+      const isBand = spec.equip === "band";
+      const isDb = spec.equip === "dumbbell";
+      if (isBand) {
+        r(21, 14, 3, F - 14, P_FRAME);
+      } else if (!isDb) {
+        drawWeightStack(10, 12, F, p);
+        drawPulley(24, 16);
+      }
       if (chop) {
-        const hx = 28 + p * 23, hy = 25 + p * 15;
+        const hx = 31 + p * 15, hy = 24 + p * 12;
         const twist = -2 + p * 5;
-        seg(24, 16, hx, hy, 1.3, P_CABLE);
+        if (isBand) seg(24, 16, hx, hy, 1.4, P_BAND);
+        else if (!isDb) seg(24, 16, hx, hy, 1.3, P_CABLE);
         for (let pass = 0; pass < 2; pass++) {
           const o = pass === 0;
           const e = o ? 2 : 0;
@@ -2367,11 +2456,12 @@ export function drawExerciseFrame(
           seg(39 + twist * 0.3, 23, hx, hy, 2.8 + e, o ? P_OUT : P_SKIN);
           seg(47 + twist * 0.3, 23, hx, hy, 2.8 + e, o ? P_OUT : P_SKIN);
         }
-        r(hx - 1, hy - 1, 3, 3, P_PIN);
+        if (isDb) drawDumbbell(hx, hy, true);
+        else if (!isBand) r(hx - 1, hy - 1, 3, 3, P_PIN);
       } else {
         const lean = p * 10;
-        const hx = 37 - lean * 0.4, hy = 25 + lean * 1.1;
-        seg(24, 16, hx, hy, 1.3, P_CABLE);
+        const hx = 36 - lean * 0.4, hy = 22 + lean * 1.4;
+        seg(24, 16, hx, hy, 1.3, isBand ? P_BAND : P_CABLE);
         for (let pass = 0; pass < 2; pass++) {
           const o = pass === 0;
           const e = o ? 2 : 0;
@@ -2416,19 +2506,19 @@ export function drawExerciseFrame(
     case "core_plank": {
       r(14, F - 2, 54, 2, P_PAD);
       const tremble = Math.sin(p * Math.PI * 2) * 0.6;
-      const shY = 39 + tremble;
-      const hipY = 42 + tremble;
+      const shY = 44 + tremble;
+      const hipY = 46 + tremble;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
         drawShoe(18, F - 2, 1, o);
         seg(19, F - 2, 35, hipY, 4 + e, o ? P_OUT : P_SHORTS);
         seg(35, hipY, 53, shY, 6 + e, o ? P_OUT : CORE_C);
-        drawHead(58, shY - 3, "right", o);
+        drawHead(58, shY - 2, "right", o);
         seg(52, shY + 2, 51, F - 2, 3 + e, o ? P_OUT : P_SKIN);
         seg(51, F - 2, 56, F - 2, 2.8 + e, o ? P_OUT : P_SKIN);
       }
-      r(37, hipY + 4, 12, 1, "#34d399");
+      r(37, hipY + 3, 12, 1, "#34d399");
       drawSpark(44, hipY - 3);
       break;
     }
@@ -2520,9 +2610,9 @@ export function drawExerciseFrame(
       break;
     }
 
-    /* 69. OLYMPIC BARBELL (Clean / Snatch / Thruster exploding bar from shins -> overhead!) */
+    /* 69. OLYMPIC BARBELL / THRUSTER (Clean / Snatch / Thruster exploding weight from thighs -> overhead!) */
     case "olympic_bar": {
-      const barY = 42 - p * 31;
+      const barY = 38 - p * 30;
       const drop = p < 0.45 ? p * 8 : (1 - p) * 6;
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
@@ -2535,11 +2625,19 @@ export function drawExerciseFrame(
         drawShoe(36, F - 2, 0, o);
         drawShoe(44, F - 2, 0, o);
         for (const s of [-1, 1]) {
-          seg(40 + s * 6, 22 + drop, 40 + s * 9, barY, 2.8 + e, o ? P_OUT : P_SKIN);
+          seg(40 + s * 6, 22 + drop, 40 + s * 8, barY, 2.8 + e, o ? P_OUT : P_SKIN);
         }
       }
-      drawFrontBarbell(40, barY, 20);
-      drawSpark(40, 6);
+      if (spec.equip === "dumbbell") {
+        drawDumbbell(31, barY, true);
+        drawDumbbell(49, barY, true);
+      } else if (spec.equip === "kettlebell") {
+        drawKettlebell(31, barY);
+        drawKettlebell(49, barY);
+      } else {
+        drawFrontBarbell(40, barY, 20);
+      }
+      drawSpark(40, 5);
       break;
     }
 
@@ -2555,13 +2653,13 @@ export function drawExerciseFrame(
       for (let pass = 0; pass < 2; pass++) {
         const o = pass === 0;
         const e = o ? 2 : 0;
-        drawShoe(25 + stride, F - 2, 1, o);
-        drawShoe(25 - stride, F - 2, 1, o);
-        seg(25 + stride, F - 2, 29, 39, 3.8 + e, o ? P_OUT : LEG_C);
-        seg(25 - stride, F - 2, 29, 39, 3.8 + e, o ? P_OUT : P_SHORTS_DK);
-        seg(29, 39, 41, 29, 6 + e, o ? P_OUT : P_SHIRT);
-        drawHead(44, 26, "right", o);
-        seg(40, 31, sx + 1, F - 22, 3 + e, o ? P_OUT : P_SKIN);
+        drawShoe(22 + stride, F - 2, 1, o);
+        drawShoe(22 - stride, F - 2, 1, o);
+        seg(22 + stride, F - 2, 26, 39, 3.8 + e, o ? P_OUT : LEG_C);
+        seg(22 - stride, F - 2, 26, 39, 3.8 + e, o ? P_OUT : P_SHORTS_DK);
+        seg(26, 39, 37, 29, 6 + e, o ? P_OUT : P_SHIRT);
+        drawHead(40, 26, "right", o);
+        seg(37, 30, sx + 1, F - 22, 3 + e, o ? P_OUT : P_SKIN);
       }
       drawSpark(sx + 20, F - 5);
       break;

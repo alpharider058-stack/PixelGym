@@ -124,6 +124,7 @@ export const EQUIP_BADGE: Record<EquipKind, string> = {
 export function detectEquip(raw: string, isBw: boolean): EquipKind {
   if (raw.includes("anillas")) return "rings";
   if (raw.includes("smith")) return "smith";
+  if (raw.includes("banda") || raw.includes("pull apart") || raw.includes("monster walk") || raw.includes("spanish squat") || raw.includes("clamshell")) return "band";
   if (raw.includes("hammer strength") || raw.includes("contractora") || raw.includes("pec deck") || raw.includes("hack") || raw.includes("pendulo") || raw.includes("maquina") || raw.includes("máquina")) {
     return "machine";
   }
@@ -131,7 +132,6 @@ export function detectEquip(raw: string, isBw: boolean): EquipKind {
     return "cable";
   }
   if (raw.includes("kettlebell") || raw.includes("swing")) return "kettlebell";
-  if (raw.includes("banda") || raw.includes("pull apart") || raw.includes("monster walk") || raw.includes("spanish squat") || raw.includes("clamshell")) return "band";
   if (raw.includes("barra z")) return "ezbar";
   if (raw.includes("mancuerna") || raw.includes("manc.") || raw.includes("arnold") || raw.includes("martillo") || raw.includes("kroc") || raw.includes("helms") || raw.includes("tate") || raw.includes("concentrado") || raw.includes("zottman") || raw.includes("waiter") || raw.includes("cruzado")) {
     return "dumbbell";
@@ -232,11 +232,12 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
   }
   if (raw.includes("crunch en polea") || raw.includes("pallof") || raw.includes("lenador") || raw.includes("woodchopper")) {
     const chop = raw.includes("lenador") || raw.includes("woodchopper") || raw.includes("pallof");
+    const cableEq: EquipKind = (equip === "band" || equip === "dumbbell") ? equip : "cable";
     return make("core_cable_crunch", chop ? "Oblicuos · Rotación Anti-Giro" : "Recto Abdominal (Con Carga)", "Core Profundo, Hombros", "1s contracción · 2s extensión", "Exhala al cerrar costillas a pelvis", [
       "Fija las caderas inmóviles y mueve únicamente la caja torácica/columna.",
       "En crunch de polea, enrolla codos hacia la mitad de los muslos.",
       "Sube controlando el peso hasta estirar la pared abdominal arriba.",
-    ], ["Sentarse sobre los talones flexionando solo la cadera.", "Tirar de la cuerda con los brazos."], chop ? "woodchop" : "flat", "cable");
+    ], ["Sentarse sobre los talones flexionando solo la cadera.", "Tirar de la cuerda con los brazos."], chop ? "woodchop" : "flat", cableEq);
   }
   if (raw.includes("crunch en maquina") || raw.includes("crunch en máquina")) {
     return make("core_machine_crunch", "Recto Abdominal en Máquina", "Flexores de Cadera", "1s flexión · pausa · 2s retorno", "Exhala fuerte al comprimir el torso", [
@@ -367,6 +368,13 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Sostén 1 segundo atrás antes de volver suavemente.",
     ], ["Poner demasiado peso y echar la espalda atrás.", "Tirar por debajo de la barbilla con codos caídos."]);
   }
+  if ((raw.includes("pajaros") || raw.includes("pájaros")) && equip === "machine") {
+    return make("reverse_pec_deck", "Deltoides Posterior en Máquina", "Romboides, Trapecio Medio", "1s apertura atrás · 2–3s retorno", "Exhala al abrir brazos atrás, inhala al volver", [
+      "Regula los agarres al nivel exacto de los hombros con pecho en el cojín.",
+      "Lleva los brazos atrás en arco amplio evitando juntar demasiado escápulas al inicio.",
+      "Controla la vuelta sin dejar caer las placas.",
+    ], ["Encoger el cuello tirando con trapecio superior.", "Doblar los codos convirtiéndolo en un remo."], undefined, "machine");
+  }
   if (raw.includes("pajaros") || raw.includes("pájaros") || raw.includes("pull apart") || raw.includes("w-raise") || raw.includes("w_raise")) {
     return make("rear_delt_bent", "Deltoides Posterior", "Trapecio Medio, Romboides", "1s elevación · 2s bajada", "Exhala al elevar brazos atrás, inhala al bajar", [
       "Inclina el torso firme casi paralelo al suelo con espalda recta.",
@@ -407,7 +415,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Empieza con palmas hacia tu cara y codos pegados al frente.",
       "Abre codos hacia fuera rotando palmas al frente mientras empujas arriba.",
       "Deshaz la rotación suavemente al bajar frente al pecho.",
-    ], ["Rotar demasiado rápido abajo chocando mancuernas.", "Arquear zona lumbar arriba."], undefined, "dumbbell");
+    ], ["Rotar demasiado rápido abajo chocando mancuernas.", "Arquear zona lumbar arriba."], undefined, equip === "kettlebell" ? "kettlebell" : "dumbbell");
   }
   if ((raw.includes("press militar") || raw.includes("press hombro")) && equip === "machine") {
     return make("ohp_machine", "Deltoides Anterior y Medio en Máquina", "Tríceps, Trapecio", "1s empuje · 2–3s bajada", "Exhala al extender arriba, inhala al volver", [
@@ -493,7 +501,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Apoya mano y rodilla contraria firmes sobre el banco paralelo al suelo.",
       "Tira describiendo arco ligero llevando mancuerna hacia la cadera (no al hombro).",
       "Estira el dorsal abajo sin rotar todo el tronco como hélice.",
-    ], ["Tirar recto al pecho con el codo pegado arriba.", "Girar la columna lumbar en cada rep."], undefined, "dumbbell");
+    ], ["Tirar recto al pecho con el codo pegado arriba.", "Girar la columna lumbar en cada rep."], undefined, equip === "kettlebell" ? "kettlebell" : "dumbbell");
   }
   if (raw.includes("encogimientos") || raw.includes("paseo del granjero")) {
     const farmer = raw.includes("granjero");
@@ -510,8 +518,8 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Sube apretando glúteos hasta alinear cuerpo sin hiperextender atrás.",
     ], ["Lanzar la espalda arriba sobrepasando la horizontal en arco.", "Flexionar repetidamente solo la lumbar."]);
   }
-  if (exId === "deadlift" || exId === "rdl" || raw.includes("peso muerto") || raw.includes("rack pull")) {
-    const v = raw.includes("sumo") ? "sumo" : raw.includes("trap") ? "trapbar" : (exId === "rdl" || raw.includes("rumano") || raw.includes("rigidas") || raw.includes("una pierna")) ? "rdl" : "flat";
+  if (exId === "deadlift" || exId === "rdl" || raw.includes("peso muerto") || raw.includes("rack pull") || raw.includes("jefferson")) {
+    const v = raw.includes("sumo") ? "sumo" : raw.includes("trap") ? "trapbar" : (exId === "rdl" || raw.includes("rumano") || raw.includes("rigidas") || raw.includes("una pierna") || raw.includes("jefferson")) ? "rdl" : "flat";
     return make("deadlift", v === "rdl" ? "Femoral · Glúteos" : v === "sumo" ? "Glúteos · Aductores · Lumbar" : "Cadena Posterior · Lumbar", "Trapecio, Antebrazo, Cuádriceps", v === "rdl" ? "3s bisagra atrás · 1s subida" : "1s despegue firme · 2s bajada", "Gran respiración diafragmática (bracing) abajo", [
       v === "rdl" ? "Empuja cadera bien atrás manteniendo piernas casi rígidas y barra rozando muslos." : "Barra pegada al centro del pie; saca pecho y tensa dorsales antes de despegar.",
       "Empuja el suelo con los pies manteniendo columna lumbar completamente neutra.",
@@ -542,7 +550,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
   }
 
   /* ---------- ARMS: BICEPS & FOREARM ---------- */
-  if (raw.includes("predicador") || raw.includes("concentrado")) {
+  if (raw.includes("predicador") || raw.includes("concentrado") || (raw.includes("curl") && equip === "machine")) {
     return make("biceps_preacher", "Bíceps Braquial (Banco Scott)", "Braquial", "1s subida · 3s extensión lenta", "Exhala al subir, inhala estirando abajo", [
       "Encaja axilas y parte posterior del brazo firme contra la almohadilla inclinada.",
       "Sube manteniendo muñecas neutras sin despegar codos del banco.",
@@ -580,7 +588,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
   }
 
   /* ---------- ARMS: TRICEPS ---------- */
-  if (raw.includes("press frances") || raw.includes("press francés") || raw.includes("rompecraneos") || raw.includes("tate")) {
+  if (raw.includes("press frances") || raw.includes("press francés") || raw.includes("rompecraneos") || raw.includes("tate") || raw.includes("press jm")) {
     return make("triceps_skullcrusher", "Tríceps (Cabeza Larga y Medial)", "Ancóneo, Antebrazo", "3s bajada a frente · 1s extensión", "Inhala al bajar atrás/frente, exhala al bloquear", [
       "Inclina brazos ligeramente atrás (100°) para mantener tensión en pico arriba.",
       "Flexiona solo los codos llevando barra hacia la frente o detrás de cabeza.",
@@ -600,6 +608,13 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Desciende la carga detrás de la nuca buscando máximo estiramiento del tríceps.",
       "Extiende verticalmente sin dejar caer los codos adelante.",
     ], ["Arquear excesivamente la espalda baja.", "Abrir muchísimo los codos hacia fuera."]);
+  }
+  if ((raw.includes("triceps") || raw.includes("tríceps")) && equip === "machine") {
+    return make("dips_machine", "Tríceps en Máquina", "Deltoides Anterior, Pecho Inferior", "1s empuje abajo · 2–3s retorno", "Exhala al empujar abajo, inhala al subir", [
+      "Apoya firme la espalda contra el respaldo y agarra los manerales pegados.",
+      "Empuja hacia abajo extendiendo codos sin despegar el glúteo del asiento.",
+      "Controla la subida hasta ~90° de flexión en los codos.",
+    ], ["Encoger los hombros hacia las orejas cuando suben los brazos.", "Levantarse del asiento por exceso de peso."], undefined, "machine");
   }
   if (exId === "pushdown" || raw.includes("triceps") || raw.includes("tríceps") || raw.includes("cuerda") || raw.includes("barra v") || raw.includes("extension cruzada") || raw.includes("extension unilateral")) {
     return make("triceps_pushdown", "Tríceps (3 Cabezas en Polea)", "Ancóneo", "1s bloqueo abajo · 2–3s subida", "Exhala al extender abajo, inhala al subir a 90°+", [
@@ -622,7 +637,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Mantén la pierna libre estirada adelante sin tocar el suelo.",
       "Baja controlando el peso sobre medio pie de la pierna de apoyo.",
       "Usa brazos adelante para equilibrar el centro de gravedad.",
-    ], ["Despegar el talón de apoyo cayendo hacia delante.", "Colapsar la rodilla de apoyo hacia dentro."], "pistol", "bodyweight");
+    ], ["Despegar el talón de apoyo cayendo hacia delante.", "Colapsar la rodilla de apoyo hacia dentro."], "pistol", equip === "kettlebell" ? "kettlebell" : "bodyweight");
   }
   if (exId === "squat" || raw.includes("sentadilla") || raw.includes("yoke")) {
     if (raw.includes("bulgara") || raw.includes("búlgara")) {
@@ -710,7 +725,7 @@ export function resolveExerciseAnim(exId: string, exName?: string): ExerciseAnim
       "Es una bisagra de cadera horizontal, NO una sentadilla ni elevación frontal.",
       "Carga caderas atrás esperando la pesa hasta el último instante y extiende fuerte.",
       "De pie recto como una plancha, deja flotar la kettlebell hasta altura del pecho.",
-    ], ["Levantar la kettlebell tirando con los hombros.", "Doblar mucho las rodillas bajando como sentadilla."], undefined, "kettlebell");
+    ], ["Levantar la kettlebell tirando con los hombros.", "Doblar mucho las rodillas bajando como sentadilla."], undefined, equip === "dumbbell" ? "dumbbell" : "kettlebell");
   }
 
   /* ---------- DEFAULT MUSCLE FALLBACK ---------- */
