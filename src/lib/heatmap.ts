@@ -12,10 +12,24 @@ export interface MuscleHeatmapData {
   hoursSince: number | null;
   daysSince: number | null;
   lastTrainedStr: string;
+  fatiguedRemainingStr: string | null;
+  recoveryPct: number;
   volumeKg7d: number;
   setsCount7d: number;
   statusTitle: string;
   recommendation: string;
+}
+
+const FATIGUE_WINDOW_MS = 48 * 36e5;
+
+function formatRemainingDuration(msLeft: number): string {
+  const totalMins = Math.max(1, Math.ceil(msLeft / 60000));
+  const days = Math.floor(totalMins / (24 * 60));
+  const hours = Math.floor((totalMins % (24 * 60)) / 60);
+  const mins = totalMins % 60;
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+  if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return `${mins}m`;
 }
 
 const MUSCLE_LIST: Muscle[] = ["chest", "back", "shoulders", "arms", "legs", "core"];
@@ -89,15 +103,21 @@ export function calculateMuscleHeatmap(
     let statusTitle = "TOTALMENTE RECUPERADO";
     let recommendation =
       "Músculo fresco al 100%. Batería cargada para buscar un nuevo récord hoy.";
+    let fatiguedRemainingStr: string | null = null;
+    let recoveryPct = 100;
 
-    if (hoursSince !== null) {
+    if (hoursSince !== null && lastTrainedAt !== null) {
+      const elapsedMs = Math.max(0, now - lastTrainedAt);
       if (hoursSince < 48) {
         state = "fatigued";
         color = "#ff3f6c"; // Red
         bgGlow = "rgba(255, 63, 108, 0.35)";
         statusTitle = "FATIGADO / EN REPARACIÓN";
+        const msLeft = Math.max(0, FATIGUE_WINDOW_MS - elapsedMs);
+        fatiguedRemainingStr = formatRemainingDuration(msLeft);
+        recoveryPct = Math.min(99, Math.max(0, Math.round((elapsedMs / FATIGUE_WINDOW_MS) * 100)));
         recommendation =
-          "Fibras musculares en síntesis proteica y reparación. Dale descanso hoy.";
+          `Fibras musculares en síntesis proteica y reparación. Dejará de estar fatigado en ${fatiguedRemainingStr}.`;
       } else if (hoursSince < 96) {
         state = "recovering";
         color = "#ffe14d"; // Yellow / Gold
@@ -117,6 +137,8 @@ export function calculateMuscleHeatmap(
       hoursSince,
       daysSince,
       lastTrainedStr,
+      fatiguedRemainingStr,
+      recoveryPct,
       volumeKg7d: Math.round(volumeKg7d),
       setsCount7d,
       statusTitle,

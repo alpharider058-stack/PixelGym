@@ -57,6 +57,11 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
     return { recovered, recovering, fatigued };
   }, [heatmap]);
 
+  const fatiguedList = useMemo(
+    () => Object.values(heatmap).filter((m) => m.state === "fatigued" && m.fatiguedRemainingStr),
+    [heatmap]
+  );
+
   const cur = heatmap[selectedMuscle];
 
   const handleSelect = (m: Muscle) => {
@@ -176,10 +181,48 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
                 style={{ backgroundColor: item.color }}
               />
               <span>{item.label}</span>
+              {item.state === "fatigued" && item.fatiguedRemainingStr && (
+                <span className="mono text-[9px] text-[#ff3f6c] font-bold">
+                  · {item.fatiguedRemainingStr}
+                </span>
+              )}
             </motion.button>
           );
         })}
       </div>
+
+      {/* Quick overview of fatigued muscles and remaining recovery time */}
+      {fatiguedList.length > 0 && (
+        <div className="border-2 border-[#ff3f6c]/50 bg-[#1a0d16] p-2.5 space-y-1.5 shadow-[2px_2px_0_#000]">
+          <div className="flex items-center justify-between">
+            <span className="pixel-title text-[7.5px] text-[#ff3f6c] font-bold">
+              ⏳ TIEMPO PARA RECUPERAR FATIGA
+            </span>
+            <span className="mono text-[10px] text-[#fda4af]">
+              {fatiguedList.length} {fatiguedList.length === 1 ? "músculo" : "músculos"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {fatiguedList.map((m) => (
+              <button
+                key={m.muscle}
+                type="button"
+                onClick={() => handleSelect(m.muscle)}
+                className={`flex items-center gap-1.5 border px-2 py-1 text-left cursor-pointer transition-colors ${
+                  selectedMuscle === m.muscle
+                    ? "border-white bg-[#2c1222]"
+                    : "border-[#ff3f6c]/40 bg-[#120910] hover:border-[#ff3f6c]"
+                }`}
+              >
+                <span className="pixel-title text-[7px] text-white">{m.label}</span>
+                <span className="mono text-[10px] font-bold text-[#ff3f6c] tabular-nums">
+                  {m.fatiguedRemainingStr}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Detailed inspector card for selected muscle */}
       {cur && (
@@ -241,6 +284,25 @@ export default function MuscleHeatmap({ onClose, compact = false }: Props) {
               </div>
             </div>
           </div>
+
+          {cur.state === "fatigued" && cur.fatiguedRemainingStr && (
+            <div className="border border-[#ff3f6c]/60 bg-[#1a0b13] p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="pixel-title text-[7.5px] text-[#ff3f6c] font-bold">
+                  ⏳ RECUPERACIÓN DE FATIGA
+                </span>
+                <span className="mono text-xs font-bold text-white tabular-nums">
+                  Faltan {cur.fatiguedRemainingStr}
+                </span>
+              </div>
+              <div className="h-2 w-full border border-black bg-[#090b12] overflow-hidden">
+                <div
+                  className="h-full bg-[#ff3f6c] transition-all duration-300"
+                  style={{ width: `${cur.recoveryPct}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="border-t border-[#2c3350] pt-2">
             <div className="pixel-title text-[7.5px] text-[#8b93b8] mb-0.5 font-bold">

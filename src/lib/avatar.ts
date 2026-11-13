@@ -480,11 +480,18 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   r(cx - 2, 16 + bob, flex > 0 ? 4 : 3, 1, flex > 0 ? "#fff" : SHADE);
   r(cx - 5, 15 + bob, 1, 2, SHADE); r(cx + 4, 15 + bob, 1, 2, SHADE);
 
-  // Hair style determined by trait or equipped item, custom color or default color
+  // Hair style determined by trait (or legacy equipped fallback), custom color or default color
   const effectiveHairId = cfg.traits?.hairStyle || equipped.hair || "hair_short";
-  const hairItem = ITEM[effectiveHairId] ?? ITEM.hair_short;
-  const hairCol = customHairColor || hairItem.color || "#2b1d14";
-  const beardCol = customHairColor || hairItem.color || "#2b1d14";
+  const defaultHairCol =
+    effectiveHairId === "hair_mohawk"
+      ? "#ff3fa4"
+      : effectiveHairId === "hair_spiky"
+      ? "#fbf236"
+      : effectiveHairId === "hair_long"
+      ? "#8a4b1f"
+      : "#2b1d14";
+  const hairCol = customHairColor || defaultHairCol;
+  const beardCol = customHairColor || defaultHairCol;
 
   // Facial hair / beard rendering
   if (facialHair === "stubble") {
@@ -512,12 +519,12 @@ export function drawAvatar(c: CanvasRenderingContext2D, cfg: AvatarCfg, t: numbe
   }
 
   const hb = 7 + bob;
-  if (hairItem.id === "hair_mohawk") { r(cx - 1.5, hb - 5, 3, 7, hairCol); r(cx - 5, hb, 10, 1, SHADE); }
-  else if (hairItem.id === "hair_spiky") {
+  if (effectiveHairId === "hair_mohawk") { r(cx - 1.5, hb - 5, 3, 7, hairCol); r(cx - 5, hb, 10, 1, SHADE); }
+  else if (effectiveHairId === "hair_spiky") {
     r(cx - 6, hb - 1, 12, 4, hairCol);
     for (let k = 0; k < 5; k++) r(cx - 6 + k * 2.5, hb - 4 - (k % 2) * 2, 2, 4, hairCol);
     r(cx - 6, hb + 3, 2, 3, hairCol); r(cx + 4, hb + 3, 2, 3, hairCol);
-  } else if (hairItem.id === "hair_long") {
+  } else if (effectiveHairId === "hair_long") {
     r(cx - 6, hb - 2, 12, 4, hairCol); r(cx - 7, hb, 3, 14, hairCol); r(cx + 4, hb, 3, 14, hairCol);
   } else { r(cx - 5, hb - 1, 10, 3, hairCol); }
 

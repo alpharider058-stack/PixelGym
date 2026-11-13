@@ -34,7 +34,6 @@ const SLOTS: { id: Slot; label: string }[] = [
   { id: "pet", label: "MASCOTAS" },
   { id: "belt", label: "CINTO" },
   { id: "wrist", label: "MUÑECA" },
-  { id: "hair", label: "PELO" },
   { id: "aura", label: "AURA" },
   { id: "bg", label: "FONDO" },
 ];
@@ -482,7 +481,7 @@ function HeroTraitsEditor() {
               {HAIR_STYLES.map((style) => {
                 const currentStyle = heroTraits.hairStyle || equipped?.hair || "hair_short";
                 const on = currentStyle === style.id;
-                const itemDef = ITEMS.find((it) => it.id === style.id);
+                const activeColor = HAIR_COLORS.find((h) => h.id === heroTraits.hairColor)?.color || "#2b1d14";
                 return (
                   <motion.button
                     key={style.id}
@@ -491,7 +490,6 @@ function HeroTraitsEditor() {
                     transition={APPLE_TAP}
                     onClick={() => {
                       setHeroTraits({ hairStyle: style.id });
-                      equip(style.id);
                       sfx.tap();
                       haptic(6);
                     }}
@@ -501,11 +499,11 @@ function HeroTraitsEditor() {
                   >
                     <span
                       className="pixelated inline-block h-5 w-5 shrink-0 border-2 border-black"
-                      style={{ background: itemDef?.color || "#2b1d14" }}
+                      style={{ background: activeColor }}
                     />
                     <div className="min-w-0">
                       <span className="pixel-title block truncate text-[8.5px] text-white font-bold">{style.name}</span>
-                      <span className="pixel-title text-[7px] text-[#8b93b8]">{on ? "✓ PUESTO" : "ELEGIR"}</span>
+                      <span className="pixel-title text-[7px] text-[#8b93b8]">{on ? "✓ PUESTO" : "GRATIS"}</span>
                     </div>
                   </motion.button>
                 );
